@@ -1,0 +1,12 @@
+{
+  "name": "eng-ge-transliterator",
+  "description": "Open-source English-to-Georgian spelling, IPA, morphology, and inflection interface.",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/sample-provider.js && node --check src/transliterator-styles.js && node --check src/transliterator-element.js && node --check app.js && node --test"
+  }
+}
