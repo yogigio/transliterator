@@ -8,7 +8,7 @@ import {
 } from "./english-ipa-rules.js?v=0.10.1";
 import { tokenizeEnglishIpa } from "./ipa-tokenizer.js";
 import { inflectGeorgianStem } from "./georgian-inflector.js";
-import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.6";
+import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.7";
 
 const VOWELS = new Set(IPA_VOWEL_TOKENS);
 const ROOT_FINAL_I = new Set(["iː", "i", "ɪ", "eɪ", "aɪ", "ɔɪ"]);
@@ -99,10 +99,10 @@ function mapSyllabicFinalL(tokens, index) {
  * Vowels IPA cannot separate but the written word can (see spelling-guided-vowels.js):
  * the written vowel unit that lines up with this nucleus picks the Georgian vowel.
  */
-function mapSpellingGuided(token, kind, context) {
+function mapSpellingGuided(token, kind, context, extra = {}) {
   const ordinal = context.nucleusOrdinals.get(token);
   const decision = context.guide && ordinal !== undefined
-    ? context.guide.decide(ordinal, kind, { properName: context.properName })
+    ? context.guide.decide(ordinal, kind, { properName: context.properName, ...extra })
     : null;
   if (!decision) return null;
   return Object.freeze({
@@ -117,7 +117,12 @@ function mapToken(tokens, index, context) {
   const token = tokens[index];
   if (token.type !== "phoneme") return null;
   if (token.value === "w") return mapW(tokens, index);
-  if (token.value === "ə") return mapSyllabicFinalL(tokens, index) ?? mapSpellingGuided(token, "schwa", context);
+  if (token.value === "ə") {
+    const followedByR = surroundingPhoneme(tokens, index, 1)?.value === "ɹ";
+    return mapSyllabicFinalL(tokens, index) ?? mapSpellingGuided(token, "schwa", context, { followedByR });
+  }
+  if (token.value === "ɚ") return mapSpellingGuided(token, "rhoticUnstressed", context);
+  if (token.value === "ɝ" || token.value === "ɜː") return mapSpellingGuided(token, "rhoticStressed", context);
   if (token.value === "oʊ") {
     const guided = mapSpellingGuided(token, "ou", context);
     if (guided) return guided;

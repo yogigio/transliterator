@@ -183,6 +183,32 @@ test("leaves other a spellings in a proper name to the ordinary schwa rule", () 
   assert.equal(generateName("Nokia", "/nˈoʊkiːə/").candidate.georgianForm, "ნოკია");
 });
 
+test("writes an r-coloured vowel as the written vowel plus რ", () => {
+  assert.equal(generate("Twitter", "/twˈɪtɚ/"), "ტვიტერი");
+  assert.equal(generate("Hacker", "/hˈækɚ/"), "ჰეკერი");
+  assert.equal(generate("Doctor", "/dˈɑːktɚ/"), "დოკტორი");
+  assert.equal(generate("Sugar", "/ʃˈʊɡɚ/"), "შუგარი");
+  assert.equal(generate("Burger", "/bˈɝɡɚ/"), "ბერგერი");
+  assert.equal(generate("Turner", "/tˈɝnɚ/"), "ტერნერი");
+});
+
+test("keeps the written r when British IPA drops it", () => {
+  assert.equal(generate("Twitter", "/ˈtwɪtə/"), "ტვიტერი");
+  assert.equal(generate("Burger", "/ˈbɜːɡə/"), "ბერგერი");
+  assert.equal(generate("Hacker", "/ˈhækə/"), "ჰეკერი");
+});
+
+test("does not double the r when the IPA already has /ɹ/", () => {
+  assert.equal(generate("Twitter", "/twˈɪtəɹ/"), "ტვიტერი");
+});
+
+test("leaves r-coloured vowels with inconsistent practice to an editor", () => {
+  assert.equal(generate("Murmur", "/mˈɝmɚ/"), null);
+  assert.equal(generate("Birdie", "/bˈɝdi/"), null);
+  assert.equal(generate("Hacker", "/hˈækɚ/", { surface: "x" }), null);
+  assert.equal(generate("Failure", "/fˈeɪljɚ/"), null);
+});
+
 test("does not guess when the spelling and the IPA cannot be lined up", () => {
   assert.equal(generate("x", "/ˈæpəlɪŋ/"), null);
   assert.equal(generate("Nokia Inc", "/nˈoʊkiːə/"), null);

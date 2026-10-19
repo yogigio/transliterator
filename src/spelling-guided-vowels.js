@@ -44,12 +44,30 @@ function nameSuffixOf(unit) {
   )) ?? null;
 }
 
+/**
+ * r-coloured vowels. The written vowel letter decides, and the r written after
+ * it (a coda r: "er" in Twitter, not the r of "Carol") becomes რ. British
+ * non-rhotic IPA has no /ɹ/ in these words, but the spelling still does.
+ * Letters that Georgian practice treats inconsistently (ir, an unstressed ur or
+ * yr, ar under stress) are left out on purpose and stay with an editor.
+ */
+const RHOTIC_BY_LETTER = Object.freeze({
+  unstressed: Object.freeze({ e: "ერ", o: "ორ", a: "არ" }),
+  stressed: Object.freeze({ e: "ერ", u: "ერ", y: "ერ", ea: "ერ", o: "ორ" }),
+});
+
 const KINDS = Object.freeze({
   /** An unstressed schwa takes the Georgian vowel of the letter that spells it. */
   schwa: (unit, options) => {
     if (options.properName && nameSuffixOf(unit)) return "ე";
+    // Non-rhotic IPA: "Twitter" /ˈtwɪtə/ has no /ɹ/ but is written with an r.
+    if (unit.codaR && !options.followedByR) return RHOTIC_BY_LETTER.unstressed[unit.text] ?? null;
     return SCHWA_BY_LETTER[unit.text] ?? null;
   },
+  /** /ɚ/, unstressed r-coloured schwa. */
+  rhoticUnstressed: (unit) => (unit.codaR ? RHOTIC_BY_LETTER.unstressed[unit.text] ?? null : null),
+  /** /ɝ/ and British /ɜː/, stressed r-coloured vowel. */
+  rhoticStressed: (unit) => (unit.codaR ? RHOTIC_BY_LETTER.stressed[unit.text] ?? null : null),
   /** /oʊ/: a plain o is ო; o+silent e, oa, ow and ou are ოუ. */
   ou: (unit) => {
     if (unit.text === "o") return unit.silentE ? "ოუ" : "ო";
@@ -121,7 +139,8 @@ function wordVariants(word) {
     let offset = run.start;
     return parts.map((text) => {
       offset += text.length;
-      return { text, silentE: false, word, after: word.slice(offset) };
+      const after = word.slice(offset);
+      return { text, silentE: false, word, after, codaR: /^r(?:[^aeiouy]|$)/u.test(after) };
     });
   }));
   if (cuts.some((options) => !options.length)) return [];
@@ -169,7 +188,7 @@ function enumerateParses(surface, nucleusCount) {
 /**
  * @param {string} surface the written form of the term
  * @param {number} nucleusCount number of vowel nuclei in the IPA
- * @returns {null | {decide(ordinal: number, kind: "schwa"|"ou"|"back", options?: {properName?: boolean}): null | {output: string, letters: string, suffix?: string, confidence: string}}}
+ * @returns {null | {decide(ordinal: number, kind: "schwa"|"ou"|"back"|"rhoticUnstressed"|"rhoticStressed", options?: {properName?: boolean, followedByR?: boolean}): null | {output: string, letters: string, suffix?: string, confidence: string}}}
  */
 export function createSpellingGuide(surface, nucleusCount) {
   if (!Number.isInteger(nucleusCount) || nucleusCount < 1) return null;
