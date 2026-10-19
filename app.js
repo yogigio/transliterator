@@ -12,6 +12,7 @@ const tool = document.querySelector("eng-transliterator");
 const themeToggle = document.querySelector(".theme-toggle");
 const themeColor = document.querySelector('meta[name="theme-color"]');
 let suppressUrlUpdate = false;
+const revealTool = () => tool.classList.remove("transliterator-pending");
 const pronunciationEndpoint = document.querySelector('meta[name="eng-ge-pronunciation-endpoint"]')?.content.trim();
 const pronunciationFallback = document.querySelector('meta[name="eng-ge-pronunciation-fallback"]')?.content.trim();
 const entrySearchEndpoint = document.querySelector('meta[name="eng-ge-entry-search-endpoint"]')?.content.trim();
@@ -101,12 +102,17 @@ const initialQuery = initialUrl.searchParams.get("q");
 const initialMode = initialUrl.searchParams.get("mode") === "generator" ? "generator" : "search";
 if (initialMode === "generator") {
   tool.setMode("generator", { term: initialQuery || "", emitEvent: false });
+  revealTool();
 } else if (initialQuery) {
-  const restoreInitialQuery = () => {
+  const restoreInitialQuery = async () => {
     suppressUrlUpdate = true;
     tool.setMode("search", { emitEvent: false, render: false });
-    tool.search(initialQuery);
-    suppressUrlUpdate = false;
+    try {
+      await tool.search(initialQuery);
+    } finally {
+      suppressUrlUpdate = false;
+      revealTool();
+    }
   };
   restoreInitialQuery();
   window.addEventListener("pageshow", () => {
@@ -114,4 +120,6 @@ if (initialMode === "generator") {
     // URL-backed query after that restoration pass so the input and result agree.
     window.requestAnimationFrame(() => window.requestAnimationFrame(restoreInitialQuery));
   }, { once: true });
+} else {
+  revealTool();
 }
