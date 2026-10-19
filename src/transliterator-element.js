@@ -193,6 +193,9 @@ export class EngTransliterator extends HTMLElement {
     });
     const form = this.shadowRoot.querySelector(".search");
     const input = form.querySelector(".search-field input");
+    const clearLabel = this.getAttribute("clear-search-label") || "Clear search";
+    form.querySelector(".search-clear").setAttribute("aria-label", clearLabel);
+    form.querySelector(".search-clear").title = clearLabel;
     input.value = this.currentEntry.headword;
     input.defaultValue = this.currentEntry.headword;
     this.syncSearchClear();
