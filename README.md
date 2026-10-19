@@ -169,6 +169,12 @@ console.log(result.cases.nominative.display); // Codex / Codex-ი
 console.log(result.cases.genitive.display);   // Codex-ის
 ```
 
+### Spelling-guided vowels
+
+IPA stays the source of truth, but a few English vowels cannot be told apart by IPA alone although Georgian spelling distinguishes them by how the word is written: an unstressed schwa, `/oʊ/`, and back `/ɑ/`. `src/spelling-guided-vowels.js` lines the written vowel letters up with the IPA vowel nuclei, and the aligned letter picks the Georgian vowel (a schwa spelled `a` is `ა`, spelled `e` is `ე`; `/oʊ/` is `ო` for a plain `o` and `ოუ` for `oa`, `ow`, `ou` or `o`+silent `e`).
+
+The alignment is cautious by design. It only speaks when the surface spelling divides into exactly as many vowel units as the IPA has nuclei **and** every possible division agrees. Otherwise the earlier behavior stands: an unresolved schwa goes to an editor, `/oʊ/` is `ოუ`, `/ɑː/` is `ა`. Initialisms are exempt because they are read letter by letter. An unstressed schwa before a word-final `l` is a syllabic `l` and writes no vowel (`apple` → `ეპლი`). The rules carry their own rule ids in the trace (`english.ipa.schwa.spelling`, `english.ipa.ou.spelling`, `english.ipa.back.spelling`).
+
 ## Source-language policy
 
 Nationality must not be used as a shortcut for pronunciation. Each entry records the language, regional variety, optional country or region, and the evidence used for transcription. For example, Linus Torvalds is Finnish, while his name is handled from the Finland-Swedish variety and displayed compactly as `Swedish (Finland)`.
