@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EnglishIpaEngineError, MORPHOLOGY_PROFILES, transcribeEnglishIpa } from "../src/english-ipa-engine.js";
+import { inflectLatinStem } from "../src/latin-inflector.js";
 
 const verified = Object.freeze({ label: "Editorial dictionary", reliability: "verified" });
 const baseMetadata = Object.freeze({ language: "English", variety: "General American" });
@@ -207,6 +208,28 @@ test("leaves r-coloured vowels with inconsistent practice to an editor", () => {
   assert.equal(generate("Birdie", "/bˈɝdi/"), null);
   assert.equal(generate("Hacker", "/hˈækɚ/", { surface: "x" }), null);
   assert.equal(generate("Failure", "/fˈeɪljɚ/"), null);
+});
+
+test("hands the Latin-script inflector the final sound its Georgian stem implies", () => {
+  const sound = (surface, ipa) => transcribeEnglishIpa({
+    ...baseMetadata, surface, readingType: "ordinary_word", ipa, pronunciationSource: verified,
+  }).candidate.latinFinalSound;
+
+  assert.deepEqual(sound("Microsoft", "/mˈaɪkɹˌoʊsˈɔːft/"), { finalSoundClass: "consonant", finalVowelClass: null });
+  assert.deepEqual(sound("city", "/sˈɪtiː/"), { finalSoundClass: "vowel", finalVowelClass: "i" });
+  assert.deepEqual(sound("Tesla", "/tˈɛslə/"), { finalSoundClass: "vowel", finalVowelClass: "other" });
+});
+
+test("a generated candidate yields a complete Latin-script paradigm", () => {
+  const candidate = transcribeEnglishIpa({
+    ...baseMetadata, surface: "Microsoft", readingType: "ordinary_word", ipa: "/mˈaɪkɹˌoʊsˈɔːft/", pronunciationSource: verified,
+  }).candidate;
+  const latin = inflectLatinStem({ stem: "Microsoft", ...candidate.latinFinalSound });
+
+  assert.equal(latin.cases.nominative.display, "Microsoft / Microsoft-ი");
+  assert.equal(latin.cases.ergative.display, "Microsoft-მა");
+  assert.equal(latin.cases.vocative.display, "Microsoft / Microsoft-ო");
+  assert.equal(Object.keys(latin.cases).length, 7);
 });
 
 test("does not guess when the spelling and the IPA cannot be lined up", () => {

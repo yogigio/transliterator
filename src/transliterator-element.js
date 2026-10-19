@@ -1,6 +1,7 @@
 import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.2";
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
 import { styles } from "./transliterator-styles.js?v=0.10.3";
+import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
 
 const icon = (name) => {
   const paths = {
@@ -530,7 +531,7 @@ export class EngTransliterator extends HTMLElement {
           <div class="overview-grid"><div><div class="label">Generated Georgian spelling</div><div class="georgian"><span>${escapeHtml(displayStem)}</span>${ending ? `<span class="ending">${escapeHtml(ending)}</span>` : ""}</div><p class="morph-note">${machineGenerated ? "Generated from a machine-estimated pronunciation because no open or reviewed record was available. Treat this as a last-resort draft requiring editorial review." : "Generated from a reliable IPA record. This is an unreviewed candidate, not an approved dictionary entry."}</p></div><div class="facts"><div class="fact"><span>Generation policy</span><strong>${escapeHtml(result.policy?.label ?? "English IPA")}</strong></div><div class="fact"><span>Strategy</span><strong>${escapeHtml(result.policy?.strategy?.label ?? "IPA transcription")}</strong></div><div class="fact"><span>Stem</span><strong>${escapeHtml(candidate.georgianStem)}-</strong></div><div class="fact"><span>Declension class</span><strong>${escapeHtml(humanize(candidate.declensionClass))}</strong></div><div class="fact"><span>Final root vowel</span><strong>${escapeHtml(humanize(candidate.finalRootVowel))}</strong></div></div></div>
           ${alternatives.length ? `<p class="generated-alternatives"><strong>Pronunciation alternatives:</strong> ${alternatives.map(escapeHtml).join(", ")}</p>` : ""}
           ${this.generatorWarnings(result.warnings)}
-          <details class="generated-inflection"><summary>Show generated inflections</summary><div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian form</th></tr></thead><tbody>${Object.entries(candidate.inflection).map(([caseName, form]) => `<tr><td>${escapeHtml(caseLabels[caseName] ?? caseName)}</td><td lang="ka">${escapeHtml(form)}</td></tr>`).join("")}</tbody></table></div></details>
+          <details class="generated-inflection"><summary>Show generated inflections</summary>${this.generatedInflectionTable(query, candidate, caseLabels)}</details>
           <div class="generated-footer">
             <div class="actions"><button class="action action-primary" type="button" data-submit>${icon("edit")} Submit for editorial review</button></div>
             ${confidenceBadge(machineGenerated ? "low" : candidate.confidence, machineGenerated ? "Low confidence because the pronunciation itself was machine-generated. Editorial review is required." : "Confidence describes rule coverage, not editorial approval.")}
@@ -542,6 +543,20 @@ export class EngTransliterator extends HTMLElement {
       event.currentTarget.querySelector(".copy-label").textContent = copied ? "Copied" : "Copy unavailable";
     });
     this.shadowRoot.querySelector("[data-submit]").addEventListener("click", () => this.openNewEntryDialog(query));
+  }
+
+  /** Georgian forms from the candidate, plus the Latin-script term inflected from the typed spelling. */
+  generatedInflectionTable(query, candidate, caseLabels) {
+    let latin = null;
+    try {
+      if (candidate.latinFinalSound) latin = inflectLatinStem({ stem: String(query).trim(), ...candidate.latinFinalSound });
+    } catch {
+      latin = null; // a term with no Latin letters has no Latin-script paradigm
+    }
+    const rows = Object.entries(candidate.inflection).map(([caseName, form]) => (
+      `<tr><td>${escapeHtml(caseLabels[caseName] ?? caseName)}</td><td lang="ka">${escapeHtml(form)}</td>${latin ? `<td>${escapeHtml(latin.cases[caseName]?.display ?? "")}</td>` : ""}</tr>`
+    )).join("");
+    return `<div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian form</th>${latin ? "<th>Latin-script term</th>" : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   render(message = "") {

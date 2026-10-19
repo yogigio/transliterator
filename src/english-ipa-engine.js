@@ -152,6 +152,20 @@ function classifyFinalVowel(phonemes, georgianStem, morphologyProfile) {
   return Object.freeze({ finalRootVowel: "none", declensionClass: "consonant" });
 }
 
+/**
+ * The final sound class the Latin-script inflector needs. It follows the Georgian
+ * stem the candidate ends with, so a Latin term reads exactly as its Georgian
+ * counterpart declines: a consonant-final Georgian stem is a consonant sound
+ * (ვორდპრესი / WordPress-ი), ი is vowel/i, and ა, ე, ო, უ are vowel/other.
+ */
+const LATIN_FINAL_SOUND = Object.freeze({
+  consonant: Object.freeze({ finalSoundClass: "consonant", finalVowelClass: null }),
+  vowel_i: Object.freeze({ finalSoundClass: "vowel", finalVowelClass: "i" }),
+  vowel_a_e: Object.freeze({ finalSoundClass: "vowel", finalVowelClass: "other" }),
+  geographic_vowel_a_e: Object.freeze({ finalSoundClass: "vowel", finalVowelClass: "other" }),
+  vowel_o_u: Object.freeze({ finalSoundClass: "vowel", finalVowelClass: "other" }),
+});
+
 function confidenceFromTrace(trace) {
   return trace.reduce(
     (lowest, item) => CONFIDENCE_RANK[item.confidence] < CONFIDENCE_RANK[lowest] ? item.confidence : lowest,
@@ -229,6 +243,7 @@ export function transcribeEnglishIpa(input) {
     georgianStem,
     morphologyProfile,
     ...morphology,
+    latinFinalSound: LATIN_FINAL_SOUND[morphology.declensionClass],
     confidence: confidenceFromTrace(trace),
     inflection: Object.freeze(Object.fromEntries(
       Object.entries(inflection.cases).map(([caseName, value]) => [caseName, value.display]),

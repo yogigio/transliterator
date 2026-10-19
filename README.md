@@ -115,6 +115,41 @@ Return `404` when no suitable record exists. Invalid records and provider failur
 
 The standalone `index.html` explicitly enables the small reviewed regression corpus as a fallback so the static demonstration remains usable when the endpoint is absent. A production host can omit the `eng-ge-pronunciation-fallback` meta tag. Forks can change `eng-ge-pronunciation-endpoint` or implement the same validated provider contract. The regression corpus is not a general English pronunciation database.
 
+### HTTP API contract
+
+The component talks to two read-only `GET` endpoints. Both are replaceable: point the `eng-ge-entry-search-endpoint` and `eng-ge-pronunciation-endpoint` meta tags (see `index.html`) at your own server, or leave them out and the standalone page runs on its built-in sample and regression data.
+
+`GET /transcription/v1/entries?q=<text>&limit=<1-20>` returns `{ "entries": [...] }`, best match first, empty when nothing matches. Only entries an editor has published (approved or automatic status, never drafts or private notes) are returned; a missing `q` is `400`, a backend fault `503`. Each entry carries both scripts' inflection tables:
+
+```json
+{
+  "id": "db-12",
+  "headword": "Microsoft",
+  "lexicalClass": "Proper noun",
+  "entityType": "Brand or product",
+  "status": "approved",
+  "pronunciations": { "en-US": { "label": "en-US", "ipa": "/ˈmaɪkɹoʊˌsɔft/", "source": "…" } },
+  "georgian": { "spelling": "მაიკროსოფტი", "stem": "მაიკროსოფტ", "ending": "ი", "endingClass": "Consonant" },
+  "inflection": {
+    "georgianScript": "regular",
+    "latinScript": "regular",
+    "scopes": ["whole"],
+    "whole": { "nominative": "მაიკროსოფტი", "ergative": "მაიკროსოფტმა", "…": "…" },
+    "latin": { "paradigm": {
+      "nominative": "Microsoft / Microsoft-ი",
+      "ergative": "Microsoft-მა",
+      "vocative": "Microsoft / Microsoft-ო"
+    } }
+  }
+}
+```
+
+A case with several accepted forms is one string, `"A / B"`. A case the editors have not confirmed is `null`, and the component shows "Awaiting confirmed rule" rather than inventing a form. Generated candidates are different: the component builds both tables itself from IPA, so an unseen term still gets Georgian and Latin-script forms (clearly labelled as an unreviewed candidate).
+
+`GET /transcription/v1/pronunciations?term=<text>&readingType=<ordinary_word|initialism|acronym|traditional_name>` returns the validated pronunciation record shown above, or `404`. Every pronunciation carries its source, licence and dataset version.
+
+Browsers only allow a page to call another origin's API if that server sends CORS headers. A deployment serving its own API from the same origin needs nothing; calling someone else's hosted API from your own page needs that host to opt in.
+
 ### Open pronunciation source pipeline
 
 The production endpoint should resolve pronunciation evidence in this order:
