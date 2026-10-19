@@ -2,7 +2,7 @@
 
 An open-source interface for looking up how international names and terms should be written and inflected in Georgian. The project is designed as both a standalone tool and an embeddable component for future use on eng.ge.
 
-This repository currently implements the agreed interface model with public sample fixtures. It does **not** yet implement English-to-Georgian linguistic rules or publish an approved dataset.
+This repository implements the agreed interface model, deterministic inflection, and the first reviewed English-IPA transcription layer. It does not publish an approved lexical dataset, pronunciation database, or spelling-only public suggestion engine.
 
 ## Current interface
 
@@ -10,11 +10,14 @@ The prototype includes:
 
 - international name and term lookup;
 - real-time, keyboard-accessible autocomplete for terms already in the provider;
+- separate dictionary-search and explicit transliteration-generator modes;
+- classified Georgian candidate generation when a reliable IPA record is available;
 - separate lexical class and entity type, displayed together (for example, `Proper noun · Brand`);
 - source language, region, and transcription basis stored separately from a person's nationality;
 - expanded forms and abbreviation types for abbreviated entries;
 - American and British IPA variants;
-- approved-entry and clearly differentiated automatic-suggestion states;
+- approved-entry and clearly differentiated unreviewed-candidate states;
+- real-time search filters for lexical class and overlapping entity categories;
 - Georgian spelling, stem, ending class, and final-`ი` analysis;
 - explicitly reviewed incorrect forms, presented as “Forms to avoid” with text and strikethrough in addition to color;
 - Georgian and conditional Latin-script inflection tables;
@@ -23,7 +26,7 @@ The prototype includes:
 - correction and missing-entry submission events for host integration, with an optional editorial stem hint;
 - responsive light and dark themes.
 
-Approved entries are the unmarked default. Exceptional states such as automatic suggestions are explicitly labeled. Unconfirmed linguistic forms remain visibly pending rather than being invented.
+Approved entries are the unmarked default. Preloaded, unconfirmed records are labeled as unreviewed candidates. Dictionary search never silently generates a result: a missing entry offers a prefilled transition to the separate generator. Runtime forms are labeled “Generated candidate,” display their IPA basis, classification, and morphology, and remain explicitly unreviewed. Requests with no reliable or fully resolvable pronunciation record do not receive a public generated form.
 
 The project does not include Georgian-to-Latin romanization. That is outside the current product scope.
 
@@ -49,7 +52,27 @@ app.js                             host-only theme wiring
 src/transliterator-element.js      reusable result/search component
 src/transliterator-styles.js       isolated component presentation
 src/sample-provider.js             public interface fixtures and local search
+src/english-ipa-rules.js           reviewed machine-readable IPA mappings and policies
+src/ipa-normalizer.js              IPA notation normalization
+src/ipa-tokenizer.js               phoneme, stress, and boundary tokenizer
+src/english-ipa-engine.js          auditable Georgian candidate generator
+src/pronunciation-provider.js      validated in-memory and HTTP provider adapters
+src/automatic-candidate-service.js pronunciation-to-candidate orchestration
+src/generator-request.js           generator metadata validation
+src/generation-policies.js         classification-to-strategy policy registry
+src/transliteration-generator.js   classification-aware generator boundary
+src/regression-pronunciations.js   small reviewed browser demonstration corpus
+src/georgian-inflector.js          deterministic Georgian-script case engine
+src/latin-inflector.js             deterministic Latin-script case engine
 tests/sample-provider.test.mjs     provider contract tests
+tests/ipa-tokenizer.test.mjs       IPA normalization and tokenization tests
+tests/english-ipa-engine.test.mjs  transcription policy and output tests
+tests/pronunciation-provider.test.mjs provider adapter contract tests
+tests/automatic-candidate-service.test.mjs candidate orchestration tests
+tests/generator-request.test.mjs   generator validation and strategy tests
+tests/generation-policies.test.mjs classification policy tests
+tests/georgian-inflector.test.mjs  Georgian-script inflection regression tests
+tests/latin-inflector.test.mjs     Latin-script inflection regression tests
 ```
 
 The `<eng-transliterator>` component uses Shadow DOM so the standalone shell and a future eng.ge host cannot accidentally override one another. The host can theme it with the documented `--tool-*` custom properties or set `theme="dark"`.
@@ -61,21 +84,54 @@ The `<eng-transliterator>` component uses Shadow DOM so the standalone shell and
 
 The component emits these integration events:
 
-- `entrysearch` with `{ query }`;
+- `entrysearch` with `{ query, filters }`;
 - `entryselect` with `{ entry }`;
 - `submissionrequest` with either a `correction` payload (`entryId`, `englishTerm`, `spelling`, optional `stem`, and `note`) or a `new-entry` payload (`englishTerm`, `category`, optional `spelling`, optional `stem`, and optional `note`).
 
 The submission UI treats a stem as optional supporting information. It is hidden behind an “Add stem” disclosure, reviewed by editors, and never accepted as an authoritative form merely because a contributor supplied it.
 
-Searches are reflected in the `?q=` URL parameter, so results can be bookmarked and browser Back/Forward navigation restores the corresponding result. Theme preference is stored locally in the browser.
+Searches are reflected in the `?q=` URL parameter. Generator views add `?mode=generator`, so both modes can be bookmarked and browser Back/Forward navigation restores the corresponding interface. Theme preference is stored locally in the browser.
 
-The sample provider is deliberately replaceable. Production eng.ge can connect the component to the versioned `/transcription/v1` API, while forks can implement a local provider or another compatible API.
+The sample entry provider and pronunciation provider are deliberately replaceable. Production eng.ge can connect the component to the versioned `/transcription/v1` API and a pronunciation endpoint, while forks can implement local or remote providers with the same validated record shape. The browser demonstration contains only a small reviewed pronunciation regression corpus; it is not a general English pronunciation database.
 
 ## Linguistic rule boundary
 
-Transcription and inflection behavior must not be inferred from generic conventions. Each future rule needs an owner-approved description, examples, exceptions, and counterexamples. Approved examples should become golden regression fixtures before an engine begins generating public results.
+Transcription and inflection behavior must not be inferred from generic conventions. Each rule needs an owner-approved description, examples, exceptions, and counterexamples. Approved examples become golden regression fixtures before an engine generates public results.
 
-The current inflection tables therefore show the intended case structure and script capabilities without filling unapproved forms.
+The IPA engine requires authoritative reading-type metadata and pronunciation reliability. It retains stress and boundaries in its token stream, returns a rule trace, treats final `/ɪ/`, `/i/`, and `/iː/` as root-final Georgian `ი`, and withholds a candidate when contextual phonemes such as unresolved schwa cannot be mapped responsibly. Candidates based on unverified pronunciation remain editor-only. Spelling-only fallback is also editor-only by policy.
+
+Inflection is also entity-aware. Foreign brands and ordinary terms ending in Georgian `ა` or `ე` preserve that vowel before genitive `-ს` and instrumental `-თი` (`ფიგმას`, `ფიგმათი`). Geographical names ending in `ა` or `ე` use the dedicated truncating class before genitive `-ის` and instrumental `-ით` (`კუბის`, `კუბით`). Names ending in `ო` or `უ` continue to preserve the final vowel.
+
+```js
+import { transcribeEnglishIpa } from "./src/english-ipa-engine.js";
+
+const suggestion = transcribeEnglishIpa({
+  surface: "GitHub",
+  language: "English",
+  variety: "General American",
+  readingType: "ordinary_word",
+  ipa: "/ˈɡɪt.hʌb/",
+  pronunciationSource: { label: "Editorial dictionary", reliability: "verified" },
+});
+
+console.log(suggestion.candidate.georgianForm); // გიტჰაბი
+```
+
+The first back-end rule module is available independently of the interface. It
+requires a preserved Latin-script stem and its final pronounced sound class; it
+does not infer pronunciation from spelling.
+
+```js
+import { inflectLatinStem } from "./src/latin-inflector.js";
+
+const result = inflectLatinStem({
+  stem: "Codex",
+  finalSoundClass: "consonant",
+});
+
+console.log(result.cases.nominative.display); // Codex / Codex-ი
+console.log(result.cases.genitive.display);   // Codex-ის
+```
 
 ## Source-language policy
 
@@ -99,6 +155,6 @@ The standalone host contains no eng.ge logo, proprietary font, or private websit
 
 The component's olive palette and typography hierarchy intentionally harmonize with eng.ge, but they are exposed as CSS custom properties rather than hard-coded integration dependencies. The public defaults may be reused by forks; the production eng.ge host remains free to override them. The component currently uses a system font stack and references `Noto Sans Georgian` only when it is already available on the visitor's device—it does not redistribute a font file.
 
-The source code is available under the [Apache License 2.0](LICENSE). This software license does not grant rights to the eng.ge name, logo, or other brand identifiers. Any font files added later must retain their own license and attribution files.
+Open-sourcing the interface code does not automatically license the eng.ge name, logo, or other brand identifiers. Before the first public release, add an explicit software license and a short trademark policy that distinguishes reusable code and theme tokens from eng.ge brand assets. Any font files added later must retain their own license and attribution files.
 
 No private eng.ge backend code, database records, user submissions, moderation notes, secrets, or licensed third-party pronunciation assets belong in this repository.

@@ -1,9 +1,17 @@
-import "./src/transliterator-element.js?v=0.4.5";
+import "./src/transliterator-element.js?v=0.8.3";
+import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.8.3";
+import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.8.3";
+import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.8.3";
 
 const tool = document.querySelector("eng-transliterator");
 const themeToggle = document.querySelector(".theme-toggle");
 const themeColor = document.querySelector('meta[name="theme-color"]');
 let suppressUrlUpdate = false;
+const automaticCandidateService = createAutomaticCandidateService({
+  pronunciationProvider: regressionPronunciationProvider,
+});
+const transliterationGenerator = createTransliterationGenerator({ candidateService: automaticCandidateService });
+tool.setCandidateResolver((request) => transliterationGenerator.generate(request));
 
 function applyTheme(theme, persist = true) {
   const dark = theme === "dark";
@@ -26,17 +34,32 @@ function updateQuery(query, replace = false) {
   history[replace ? "replaceState" : "pushState"]({}, "", url);
 }
 
+function updateMode(mode, term = "", replace = false) {
+  if (suppressUrlUpdate) return;
+  const url = new URL(window.location.href);
+  if (mode === "generator") url.searchParams.set("mode", "generator");
+  else url.searchParams.delete("mode");
+  const normalizedTerm = String(term ?? "").trim();
+  if (normalizedTerm) url.searchParams.set("q", normalizedTerm);
+  history[replace ? "replaceState" : "pushState"]({}, "", url);
+}
+
 themeToggle.addEventListener("click", () => {
   applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
 });
 
 tool.addEventListener("entrysearch", (event) => updateQuery(event.detail.query));
 tool.addEventListener("entryselect", (event) => updateQuery(event.detail.entry.headword));
+tool.addEventListener("modechange", (event) => updateMode(event.detail.mode, event.detail.term));
+tool.addEventListener("generatorrequest", (event) => updateMode("generator", event.detail.request.term, true));
 
 window.addEventListener("popstate", () => {
   suppressUrlUpdate = true;
-  const query = new URL(window.location.href).searchParams.get("q") || "WordPress";
-  tool.search(query);
+  const url = new URL(window.location.href);
+  const query = url.searchParams.get("q") || "WordPress";
+  const mode = url.searchParams.get("mode") === "generator" ? "generator" : "search";
+  tool.setMode(mode, { term: query, emitEvent: false });
+  if (mode === "search") tool.search(query);
   suppressUrlUpdate = false;
 });
 
@@ -44,9 +67,22 @@ const savedTheme = localStorage.getItem("eng-transliterator-theme");
 const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 applyTheme(savedTheme || preferredTheme, false);
 
-const initialQuery = new URL(window.location.href).searchParams.get("q");
-if (initialQuery) {
-  suppressUrlUpdate = true;
-  tool.search(initialQuery);
-  suppressUrlUpdate = false;
+const initialUrl = new URL(window.location.href);
+const initialQuery = initialUrl.searchParams.get("q");
+const initialMode = initialUrl.searchParams.get("mode") === "generator" ? "generator" : "search";
+if (initialMode === "generator") {
+  tool.setMode("generator", { term: initialQuery || "", emitEvent: false });
+} else if (initialQuery) {
+  const restoreInitialQuery = () => {
+    suppressUrlUpdate = true;
+    tool.setMode("search", { emitEvent: false, render: false });
+    tool.search(initialQuery);
+    suppressUrlUpdate = false;
+  };
+  restoreInitialQuery();
+  window.addEventListener("pageshow", () => {
+    // Browsers may restore a form control after modules initialize. Reapply the
+    // URL-backed query after that restoration pass so the input and result agree.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(restoreInitialQuery));
+  }, { once: true });
 }

@@ -17,6 +17,22 @@ test("returns partial matching entries and no result for unknown values", () => 
   assert.deepEqual(searchEntries("unknown term"), []);
 });
 
+test("filters search with OR inside groups and AND between groups", () => {
+  assert.deepEqual(
+    searchEntries("", { lexicalClasses: ["Abbreviation"] }).map((entry) => entry.headword),
+    ["PHP", "CNN"],
+  );
+  assert.deepEqual(
+    searchEntries("", { entityCategories: ["person", "place"] }).map((entry) => entry.headword),
+    ["Miami", "Linus Torvalds", "Steve Jobs"],
+  );
+  assert.deepEqual(
+    searchEntries("", { lexicalClasses: ["Abbreviation"], entityCategories: ["organization"] }).map((entry) => entry.headword),
+    ["CNN"],
+  );
+  assert.deepEqual(searchEntries("PHP", { entityCategories: ["organization"] }), []);
+});
+
 test("features only the selected open-source-oriented examples", () => {
   assert.deepEqual(featuredEntries.map((entry) => entry.headword), ["WordPress", "GitHub", "PHP", "Miami", "Linus Torvalds"]);
 });
@@ -25,7 +41,19 @@ test("stores the official expansion and abbreviation type for PHP", () => {
   const php = getEntry("sample_php");
   assert.equal(php.fullForm, "PHP: Hypertext Preprocessor");
   assert.equal(php.abbreviationType, "Recursive acronym");
+  assert.equal(php.georgian.spelling, "პიეიჩპი");
+  assert.equal(php.georgian.stem, "პიეიჩპი");
+  assert.equal(php.inflection.whole.instrumental, "პიეიჩპით");
   assert.equal(php.georgian.finalIRole, "Part of the letter name");
+});
+
+test("joins CNN letter names and adds the Georgian nominative marker", () => {
+  const cnn = getEntry("sample_cnn");
+  assert.equal(cnn.georgian.spelling, "სიენენი");
+  assert.equal(cnn.georgian.stem, "სიენენ");
+  assert.equal(cnn.georgian.ending, "ი");
+  assert.equal(cnn.inflection.whole.genitive, "სიენენის");
+  assert.equal(cnn.inflection.latin.paradigm.instrumental, "CNN-ით");
 });
 
 test("keeps source language separate from nationality and rule coverage", () => {
@@ -64,16 +92,46 @@ test("declares conditional script and component inflection capabilities", () => 
   assert.equal(personalName.components.length, 2);
 });
 
-test("all fixtures expose a complete case-table shape without invented forms", () => {
+test("all fixtures expose a complete generated Georgian case-table shape", () => {
   const keys = CASES.map(([key]) => key);
   sampleEntries.forEach((entry) => {
     assert.deepEqual(Object.keys(entry.inflection.whole), keys);
-    assert.ok(Object.values(entry.inflection.whole).every((value) => value === null));
+    assert.ok(Object.values(entry.inflection.whole).every((value) => typeof value === "string" && value.length > 0));
   });
 });
 
-test("automatic suggestions remain visibly distinct from approved fixtures", () => {
+test("generates the requested GitHub Georgian paradigm without hyphens", () => {
+  assert.deepEqual(getEntry("sample_github").inflection.whole, {
+    nominative: "გიტჰაბი",
+    ergative: "გიტჰაბმა",
+    dative: "გიტჰაბს",
+    genitive: "გიტჰაბის",
+    instrumental: "გიტჰაბით",
+    adverbial: "გიტჰაბად",
+    vocative: "გიტჰაბო",
+  });
+});
+
+test("unreviewed candidates remain distinct from approved fixtures", () => {
   const figma = getEntry("sample_figma");
-  assert.equal(figma.status, "automatic");
+  assert.equal(figma.status, "candidate");
   assert.equal(figma.confidence.band, "Medium");
+});
+
+test("provides generated Latin-script case forms from recorded sound classes", () => {
+  const github = getEntry("sample_github");
+  assert.equal(github.inflection.latinScript, "automatic");
+  assert.equal(github.inflection.latin.finalSoundClass, "consonant");
+  assert.deepEqual(github.inflection.latin.paradigm, {
+    nominative: "GitHub / GitHub-ი",
+    ergative: "GitHub-მა",
+    dative: "GitHub-ს",
+    genitive: "GitHub-ის",
+    instrumental: "GitHub-ით",
+    adverbial: "GitHub-ად",
+    vocative: "GitHub / GitHub-ო",
+  });
+
+  assert.equal(getEntry("sample_php").inflection.latin.paradigm.instrumental, "PHP-თ");
+  assert.equal(getEntry("sample_figma").inflection.latin.paradigm.instrumental, "Figma-თი");
 });

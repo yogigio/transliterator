@@ -3,4 +3,19 @@ Thumbs.db
 node_modules/
 dist/
 coverage/
+tmp/
 *.log
+
+# All Word documents in this project are private and must not be committed
+docs/*.docx
+docs/**/*.docx
+
+# Private publication draft and its local generation or review artifacts
+docs/Georgian_Inflection_Guidelines_for_Foreign_Nouns_and_Abbreviations_v1.0.docx
+docs/build_inflection_guidelines.py
+docs/.rendered-inflection-guidelines*/
+
+# Private English-to-Georgian IPA review draft and local build artifacts
+docs/English_to_Georgian_Transcription_Rules_for_IPA_Engine_Draft_v0.1.docx
+docs/build_english_ipa_guidelines.py
+docs/.rendered-english-ipa-guidelines*/

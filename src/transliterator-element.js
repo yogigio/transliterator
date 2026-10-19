@@ -1,5 +1,6 @@
-import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.4.5";
-import { styles } from "./transliterator-styles.js?v=0.4.5";
+import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.8.3";
+import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.8.3";
+import { styles } from "./transliterator-styles.js?v=0.8.3";
 
 const icon = (name) => {
   const paths = {
@@ -7,6 +8,7 @@ const icon = (name) => {
     copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
     table: '<path d="M4 5h16v14H4zM4 10h16M10 5v14"/>',
     edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+    filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
   };
   return `<span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24">${paths[name]}</svg></span>`;
 };
@@ -18,22 +20,64 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
+const confidenceBadge = (band, explanation) => {
+  const label = `${String(band ?? "").toLowerCase()} confidence`;
+  const displayLabel = label.charAt(0).toUpperCase() + label.slice(1);
+  return `<div class="confidence" role="note" tabindex="0" aria-label="${escapeHtml(displayLabel)}. ${escapeHtml(explanation)}"><strong>${escapeHtml(displayLabel)}</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
+};
+
+const humanize = (value) => {
+  const text = String(value ?? "").replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+const filterControls = ENTRY_FILTER_GROUPS.map((group) => `
+  <fieldset class="filter-group">
+    <legend>${escapeHtml(group.label)}</legend>
+    ${group.options.map((option) => `<label><input type="checkbox" data-filter-group="${group.key}" value="${escapeHtml(option.value)}" /><span>${escapeHtml(option.label)}</span></label>`).join("")}
+  </fieldset>`).join("");
+
 const template = document.createElement("template");
 template.innerHTML = `
   <style>${styles}</style>
   <section class="tool">
     <div class="hero">
-      <div class="eyebrow">International names and terms → Georgian</div>
-      <h1>Write international names and terms in Georgian</h1>
-      <p>Find Georgian spellings with pronunciation, source-language context, morphology, and inflection.</p>
+      <div class="mode-switch" role="group" aria-label="Tool mode">
+        <button type="button" data-mode="search" aria-pressed="true">Dictionary search</button>
+        <button type="button" data-mode="generator" aria-pressed="false">Transliteration generator</button>
+      </div>
+      <h1 class="hero-title">Write international names and terms in Georgian</h1>
+      <p class="hero-description">Find reviewed Georgian spellings with pronunciation, source-language context, morphology, and inflection.</p>
       <form class="search">
-        <label class="search-field">
-          ${icon("search")}
-          <span class="sr-only">Search for a name, place, brand, or term</span>
-          <input value="WordPress" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="term-suggestions" aria-expanded="false" aria-label="Search for a name, place, brand, or term" />
-        </label>
-        <button type="submit">Search</button>
-        <div class="suggestions" id="term-suggestions" role="listbox" aria-label="Matching terms" hidden></div>
+        <div class="filter-menu">
+          <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="entry-filter-panel">
+            ${icon("filter")}<span>Filter</span><span class="filter-count" hidden></span>
+          </button>
+          <div class="filter-panel" id="entry-filter-panel" hidden>
+            <div class="filter-panel-head"><strong>Filter entries</strong><button class="filter-clear" type="button">Clear all</button></div>
+            ${filterControls}
+            <p>Selections use OR within a group and AND between groups.</p>
+          </div>
+        </div>
+        <div class="search-input-wrap">
+          <label class="search-field">
+            ${icon("search")}
+            <span class="sr-only">Search for a name, place, brand, or term</span>
+            <input autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="term-suggestions" aria-expanded="false" aria-label="Search for a name, place, brand, or term" />
+          </label>
+          <div class="suggestions" id="term-suggestions" role="listbox" aria-label="Matching terms" hidden></div>
+        </div>
+        <button class="search-submit" type="submit">Search</button>
+      </form>
+      <form class="generator-form" hidden>
+        <div class="generator-fields">
+          <label class="generator-field generator-term"><span>English term</span><input name="term" autocomplete="off" required /></label>
+          <label class="generator-field"><span>Term class</span><select name="lexicalClass" required><option value="">Select a class</option><option value="ordinary_word">Ordinary word</option><option value="proper_noun">Proper noun</option><option value="abbreviation">Abbreviation</option></select></label>
+          <label class="generator-field generator-entity" hidden><span>Proper-noun type</span><select name="entityType"><option value="">Select a type</option><option value="personal_name">Personal name</option><option value="geographic_name">Geographic name</option><option value="organization">Organization</option><option value="brand_product">Brand or product</option><option value="work_publication">Work or publication</option><option value="other">Other</option></select></label>
+          <label class="generator-field generator-reading" hidden><span>Reading type</span><select name="readingType"><option value="">Select a reading</option><option value="initialism">Initialism (PHP, CNN)</option><option value="acronym">Acronym (NATO)</option></select></label>
+          <button class="generator-submit" type="submit">Generate candidate</button>
+        </div>
+        <p class="generator-help">Generation requires a reliable English IPA record. Orthographic guesses remain editor-only.</p>
       </form>
       <div class="examples"><span>Try:</span></div>
     </div>
@@ -72,11 +116,60 @@ export class EngTransliterator extends HTMLElement {
     this.dialogMode = "correction";
     this.pendingQuery = "";
     this.suggestionIndex = -1;
+    this.entryFilters = normalizeEntryFilters();
+    this.candidateResolver = null;
+    this.candidateRequest = 0;
+    this.mode = "search";
+  }
+
+  setCandidateResolver(resolver) {
+    if (resolver !== null && typeof resolver !== "function") {
+      throw new TypeError("Candidate resolver must be a function or null.");
+    }
+    this.candidateResolver = resolver;
+  }
+
+  setMode(mode, { term = "", emitEvent = true, render = true } = {}) {
+    if (mode !== "search" && mode !== "generator") throw new TypeError("Unknown tool mode.");
+    this.candidateRequest += 1;
+    this.mode = mode;
+    const isGenerator = mode === "generator";
+    this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+    });
+    this.shadowRoot.querySelector(".search").hidden = isGenerator;
+    this.shadowRoot.querySelector(".examples").hidden = isGenerator;
+    this.shadowRoot.querySelector(".generator-form").hidden = !isGenerator;
+    this.shadowRoot.querySelector(".hero-title").textContent = isGenerator
+      ? "Generate an English-to-Georgian candidate"
+      : "Write international names and terms in Georgian";
+    this.shadowRoot.querySelector(".hero-description").textContent = isGenerator
+      ? "Classify the term first, then generate an auditable candidate from reliable English pronunciation data."
+      : "Find reviewed Georgian spellings with pronunciation, source-language context, morphology, and inflection.";
+
+    if (isGenerator) {
+      const generatorTerm = this.shadowRoot.querySelector('.generator-form [name="term"]');
+      generatorTerm.value = String(term || generatorTerm.value || this.shadowRoot.querySelector(".search-field input").value).trim();
+      this.syncGeneratorFields();
+      if (render) this.renderGeneratorLanding(generatorTerm.value);
+    } else if (render) {
+      this.render();
+    }
+    if (emitEvent) {
+      this.dispatchEvent(new CustomEvent("modechange", { bubbles: true, composed: true, detail: { mode, term: String(term ?? "").trim() } }));
+    }
   }
 
   connectedCallback() {
+    this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => {
+      button.addEventListener("click", () => this.setMode(button.dataset.mode, {
+        term: this.shadowRoot.querySelector(".search-field input").value,
+      }));
+    });
     const form = this.shadowRoot.querySelector(".search");
-    const input = form.querySelector("input");
+    const input = form.querySelector(".search-field input");
+    input.value = this.currentEntry.headword;
+    input.defaultValue = this.currentEntry.headword;
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       this.hideSuggestions();
@@ -86,8 +179,40 @@ export class EngTransliterator extends HTMLElement {
     input.addEventListener("focus", () => this.updateSuggestions(input.value));
     input.addEventListener("keydown", (event) => this.handleSuggestionKeydown(event));
     form.addEventListener("focusout", () => window.setTimeout(() => {
-      if (!form.contains(this.shadowRoot.activeElement)) this.hideSuggestions();
+      if (!form.contains(this.shadowRoot.activeElement)) {
+        this.hideSuggestions();
+        this.closeFilterPanel();
+      }
     }, 0));
+
+    const filterToggle = form.querySelector(".filter-toggle");
+    filterToggle.addEventListener("click", () => {
+      const panel = form.querySelector(".filter-panel");
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      filterToggle.setAttribute("aria-expanded", String(willOpen));
+    });
+    form.querySelector(".filter-panel").addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.closeFilterPanel();
+        filterToggle.focus();
+      }
+    });
+    form.querySelectorAll("[data-filter-group]").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => this.syncFiltersFromControls());
+    });
+    form.querySelector(".filter-clear").addEventListener("click", () => {
+      form.querySelectorAll("[data-filter-group]").forEach((checkbox) => { checkbox.checked = false; });
+      this.syncFiltersFromControls();
+    });
+
+    const generatorForm = this.shadowRoot.querySelector(".generator-form");
+    generatorForm.querySelector('[name="lexicalClass"]').addEventListener("change", () => this.syncGeneratorFields());
+    generatorForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.generateFromForm();
+    });
 
     const examples = this.shadowRoot.querySelector(".examples");
     featuredEntries.forEach((entry) => {
@@ -102,23 +227,63 @@ export class EngTransliterator extends HTMLElement {
     const dialog = this.shadowRoot.querySelector("dialog");
     this.shadowRoot.querySelector(".close").addEventListener("click", () => dialog.close());
     dialog.addEventListener("close", () => this.handleDialogClose(dialog));
+    this.setMode("search", { emitEvent: false, render: false });
     this.render();
   }
 
   search(query) {
     const normalizedQuery = String(query ?? "").trim();
-    this.shadowRoot.querySelector(".search input").value = normalizedQuery;
-    const [entry] = searchEntries(normalizedQuery);
+    this.candidateRequest += 1;
+    const input = this.shadowRoot.querySelector(".search-field input");
+    input.value = normalizedQuery;
+    input.defaultValue = normalizedQuery;
+    const [entry] = searchEntries(normalizedQuery, this.entryFilters);
+    const filtered = hasActiveEntryFilters(this.entryFilters);
     if (entry) this.selectEntry(entry, false);
-    else this.renderEmpty(normalizedQuery);
-    this.dispatchEvent(new CustomEvent("entrysearch", { bubbles: true, composed: true, detail: { query: normalizedQuery } }));
+    else this.renderEmpty(normalizedQuery, "", filtered);
+    this.closeFilterPanel();
+    this.dispatchEvent(new CustomEvent("entrysearch", { bubbles: true, composed: true, detail: { query: normalizedQuery, filters: this.entryFilters } }));
+  }
+
+  syncGeneratorFields() {
+    const form = this.shadowRoot.querySelector(".generator-form");
+    const lexicalClass = form.elements.lexicalClass.value;
+    const entityField = form.querySelector(".generator-entity");
+    const readingField = form.querySelector(".generator-reading");
+    entityField.hidden = lexicalClass !== "proper_noun";
+    readingField.hidden = lexicalClass !== "abbreviation";
+    form.elements.entityType.required = lexicalClass === "proper_noun";
+    form.elements.readingType.required = lexicalClass === "abbreviation";
+    if (entityField.hidden) form.elements.entityType.value = "";
+    if (readingField.hidden) form.elements.readingType.value = "";
+  }
+
+  openGenerator(term) {
+    this.setMode("generator", { term });
+    this.shadowRoot.querySelector('.generator-form [name="term"]').focus();
+  }
+
+  generateFromForm() {
+    const form = this.shadowRoot.querySelector(".generator-form");
+    if (!form.reportValidity()) return;
+    const request = {
+      term: form.elements.term.value,
+      lexicalClass: form.elements.lexicalClass.value,
+      entityType: form.elements.entityType.value,
+      readingType: form.elements.readingType.value,
+    };
+    const requestId = ++this.candidateRequest;
+    this.renderAutomaticPending(request.term);
+    this.resolveAutomaticCandidate(request, requestId);
+    this.dispatchEvent(new CustomEvent("generatorrequest", { bubbles: true, composed: true, detail: { request } }));
   }
 
   updateSuggestions(query) {
-    const input = this.shadowRoot.querySelector(".search input");
+    const input = this.shadowRoot.querySelector(".search-field input");
     const list = this.shadowRoot.querySelector(".suggestions");
     const value = String(query ?? "").trim();
-    const matches = value ? searchEntries(value).slice(0, 6) : [];
+    const shouldSearch = Boolean(value) || hasActiveEntryFilters(this.entryFilters);
+    const matches = shouldSearch ? searchEntries(value, this.entryFilters).slice(0, 6) : [];
     list.replaceChildren();
     this.suggestionIndex = -1;
 
@@ -153,7 +318,7 @@ export class EngTransliterator extends HTMLElement {
       const offset = event.key === "ArrowDown" ? 1 : -1;
       this.suggestionIndex = (this.suggestionIndex + offset + options.length) % options.length;
       options.forEach((option, index) => option.setAttribute("aria-selected", String(index === this.suggestionIndex)));
-      this.shadowRoot.querySelector(".search input").setAttribute("aria-activedescendant", options[this.suggestionIndex].id);
+      this.shadowRoot.querySelector(".search-field input").setAttribute("aria-activedescendant", options[this.suggestionIndex].id);
     } else if (event.key === "Enter" && this.suggestionIndex >= 0) {
       event.preventDefault();
       options[this.suggestionIndex].click();
@@ -164,7 +329,7 @@ export class EngTransliterator extends HTMLElement {
   }
 
   hideSuggestions() {
-    const input = this.shadowRoot.querySelector(".search input");
+    const input = this.shadowRoot.querySelector(".search-field input");
     const list = this.shadowRoot.querySelector(".suggestions");
     list.hidden = true;
     list.replaceChildren();
@@ -173,19 +338,139 @@ export class EngTransliterator extends HTMLElement {
     input.removeAttribute("aria-activedescendant");
   }
 
+  closeFilterPanel() {
+    const panel = this.shadowRoot.querySelector(".filter-panel");
+    const toggle = this.shadowRoot.querySelector(".filter-toggle");
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  }
+
+  syncFiltersFromControls() {
+    const filters = {};
+    ENTRY_FILTER_GROUPS.forEach((group) => {
+      filters[group.key] = [...this.shadowRoot.querySelectorAll(`[data-filter-group="${group.key}"]:checked`)]
+        .map((checkbox) => checkbox.value);
+    });
+    this.entryFilters = normalizeEntryFilters(filters);
+    this.renderFilterState();
+    this.updateSuggestions(this.shadowRoot.querySelector(".search-field input").value);
+  }
+
+  renderFilterState() {
+    const count = ENTRY_FILTER_GROUPS.reduce((total, group) => total + this.entryFilters[group.key].length, 0);
+    const badge = this.shadowRoot.querySelector(".filter-count");
+    const toggle = this.shadowRoot.querySelector(".filter-toggle");
+    badge.textContent = String(count);
+    badge.hidden = count === 0;
+    toggle.classList.toggle("is-active", count > 0);
+    toggle.setAttribute("aria-label", count ? `Filter entries, ${count} selected` : "Filter entries");
+  }
+
   sourceDisplay(entry) {
     return `${entry.sourceLanguage}${entry.sourceRegion ? ` (${entry.sourceRegion})` : ""}`;
   }
 
   selectEntry(entry, emitEvent = true) {
+    this.candidateRequest += 1;
     this.currentEntry = entry;
     this.dialect = Object.keys(entry.pronunciations)[0];
     this.activeTab = "overview";
     this.inflectionScope = "whole";
-    this.shadowRoot.querySelector(".search input").value = entry.headword;
+    const input = this.shadowRoot.querySelector(".search-field input");
+    input.value = entry.headword;
+    input.defaultValue = entry.headword;
     this.hideSuggestions();
     this.render();
     if (emitEvent) this.dispatchEvent(new CustomEvent("entryselect", { bubbles: true, composed: true, detail: { entry } }));
+  }
+
+  async resolveAutomaticCandidate(request, requestId) {
+    const query = String(request.term ?? "").trim();
+    try {
+      if (!this.candidateResolver) throw new Error("Generator service is unavailable.");
+      const result = await this.candidateResolver(request);
+      if (requestId !== this.candidateRequest) return;
+      if (result?.status === "candidate" && result.suggestions?.length) {
+        this.renderAutomaticCandidate(query, result);
+      } else if (result?.status === "editor_review") {
+        this.renderAutomaticReviewRequired(query, result);
+      } else {
+        this.renderGeneratorUnavailable(query, result);
+      }
+    } catch {
+      if (requestId === this.candidateRequest) {
+        this.renderGeneratorLanding(query, "The generator could not validate this request. Check its classification and try again.");
+      }
+    }
+  }
+
+  renderGeneratorLanding(term = "", message = "") {
+    const safeTerm = escapeHtml(String(term ?? "").trim());
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty generator-intro"><span class="status">Generator</span><h2>${safeTerm ? `Ready for ${safeTerm}` : "Create an auditable candidate"}</h2><p>Select the term class${safeTerm ? "" : " and enter an English term"}. Proper nouns and abbreviations reveal the metadata needed for their specific rules.</p>${message ? `<div class="notice" role="status"><strong>${escapeHtml(message)}</strong></div>` : ""}</section>`;
+  }
+
+  renderAutomaticPending(query) {
+    this.pendingQuery = query;
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty" aria-busy="true"><span class="status">Checking pronunciation</span><h2>${escapeHtml(query)}</h2><p>Looking for a reliable English IPA pronunciation before generating a Georgian candidate.</p></section>`;
+  }
+
+  renderAutomaticReviewRequired(query, result = {}) {
+    this.pendingQuery = query;
+    const mismatch = result.reason === "reading_type_mismatch";
+    const explanation = mismatch
+      ? "The selected abbreviation reading conflicts with the authoritative pronunciation record. No candidate was generated."
+      : "A pronunciation record was found, but it contains unresolved or unverified evidence. No public Georgian candidate was generated.";
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty"><span class="status">Editorial review required</span><h2>${escapeHtml(query)}</h2><p>${explanation}</p>${this.generatorWarnings(result.warnings)}<button class="action action-primary" type="button" data-submit>${icon("edit")} Submit term for review</button></section>`;
+    this.shadowRoot.querySelector("[data-submit]").addEventListener("click", () => this.openNewEntryDialog(query));
+  }
+
+  renderGeneratorUnavailable(query, result = {}) {
+    this.pendingQuery = query;
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty"><span class="status">No reliable pronunciation</span><h2>${escapeHtml(query)}</h2><p>The public generator requires a reliable English IPA record. It will not expose an orthographic guess.</p>${this.generatorWarnings(result.warnings)}<button class="action action-primary" type="button" data-submit>${icon("edit")} Submit term for review</button></section>`;
+    this.shadowRoot.querySelector("[data-submit]").addEventListener("click", () => this.openNewEntryDialog(query));
+  }
+
+  generatorWarnings(warnings = []) {
+    return warnings.length ? `<div class="generator-warnings"><strong>Checks before publication</strong><ul>${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>` : "";
+  }
+
+  renderAutomaticCandidate(query, result) {
+    const generated = result.suggestions[0];
+    const candidate = generated.candidate;
+    const sourceLabel = generated.reviewReasons.length
+      ? "Pronunciation requires review"
+      : "Reliable IPA pronunciation";
+    const ending = candidate.declensionClass === "consonant" ? candidate.georgianForm.slice(-1) : "";
+    const displayStem = ending ? candidate.georgianForm.slice(0, -1) : candidate.georgianForm;
+    const alternatives = [...new Set(result.suggestions.slice(1).map((item) => item.candidate.georgianForm))];
+    const caseLabels = Object.fromEntries(CASES);
+    const request = result.request ?? {};
+    const classificationParts = [request.lexicalClass, request.entityType]
+      .filter((value) => value && value !== "not_applicable")
+      .map(humanize);
+    if (request.readingType && request.readingType !== "ordinary_word") classificationParts.push(humanize(request.readingType));
+    const classification = classificationParts.join(" · ");
+    this.pendingQuery = query;
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `
+      <article class="result generated-result">
+        <div class="result-head"><div><span class="status">Generated candidate</span><h2>${escapeHtml(query)}</h2><div class="category">${escapeHtml(classification || humanize(result.readingType))} · Generated from English IPA</div></div><button class="copy" type="button" data-copy-generated>${icon("copy")}<span class="copy-label">Copy Georgian</span></button></div>
+        <div class="pronunciation"><strong>${escapeHtml(generated.variety)}</strong><span class="ipa">${escapeHtml(generated.ipaOriginal)}</span><span class="source">${sourceLabel}</span></div>
+        <section class="panel generated-panel">
+          <div class="overview-grid"><div><div class="label">Generated Georgian spelling</div><div class="georgian"><span>${escapeHtml(displayStem)}</span>${ending ? `<span class="ending">${escapeHtml(ending)}</span>` : ""}</div><p class="morph-note">Generated from a reliable IPA record. This is an unreviewed candidate, not an approved dictionary entry.</p></div><div class="facts"><div class="fact"><span>Generation policy</span><strong>${escapeHtml(result.policy?.label ?? "English IPA")}</strong></div><div class="fact"><span>Strategy</span><strong>${escapeHtml(result.policy?.strategy?.label ?? "IPA transcription")}</strong></div><div class="fact"><span>Stem</span><strong>${escapeHtml(candidate.georgianStem)}-</strong></div><div class="fact"><span>Declension class</span><strong>${escapeHtml(humanize(candidate.declensionClass))}</strong></div><div class="fact"><span>Final root vowel</span><strong>${escapeHtml(humanize(candidate.finalRootVowel))}</strong></div></div></div>
+          ${alternatives.length ? `<p class="generated-alternatives"><strong>Pronunciation alternatives:</strong> ${alternatives.map(escapeHtml).join(", ")}</p>` : ""}
+          ${this.generatorWarnings(result.warnings)}
+          <details class="generated-inflection"><summary>Show generated inflections</summary><div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian form</th></tr></thead><tbody>${Object.entries(candidate.inflection).map(([caseName, form]) => `<tr><td>${escapeHtml(caseLabels[caseName] ?? caseName)}</td><td lang="ka">${escapeHtml(form)}</td></tr>`).join("")}</tbody></table></div></details>
+          <div class="generated-footer">
+            <div class="actions"><button class="action action-primary" type="button" data-submit>${icon("edit")} Submit for editorial review</button></div>
+            ${confidenceBadge(candidate.confidence, "Confidence describes rule coverage, not editorial approval.")}
+          </div>
+        </section>
+      </article>`;
+    this.shadowRoot.querySelector("[data-copy-generated]").addEventListener("click", async (event) => {
+      const copied = await this.copyText(candidate.georgianForm);
+      event.currentTarget.querySelector(".copy-label").textContent = copied ? "Copied" : "Copy unavailable";
+    });
+    this.shadowRoot.querySelector("[data-submit]").addEventListener("click", () => this.openNewEntryDialog(query));
   }
 
   render(message = "") {
@@ -196,7 +481,7 @@ export class EngTransliterator extends HTMLElement {
       <article class="result">
         <div class="result-head">
           <div>
-            ${entry.status === "automatic" ? '<span class="status">Automatic suggestion</span>' : ""}
+            ${entry.status === "candidate" ? '<span class="status">Unreviewed candidate</span>' : ""}
             <h2>${entry.headword}</h2>
             <div class="category">${entry.lexicalClass} · ${entry.entityType}</div>
             <div class="source-context">Source: ${this.sourceDisplay(entry)}</div>
@@ -242,9 +527,9 @@ export class EngTransliterator extends HTMLElement {
       ${entry.rejectedForms?.length ? this.rejectedForms(entry.rejectedForms) : ""}
       <div class="actions">
         <button class="action action-primary" type="button" data-open-tab="inflection">${icon("table")} Show inflections</button>
-        <button class="action" type="button" data-correct>${icon("edit")} ${entry.status === "automatic" ? "Propose another spelling" : "Suggest a correction"}</button>
+        <button class="action" type="button" data-correct>${icon("edit")} ${entry.status === "candidate" ? "Propose another spelling" : "Suggest a correction"}</button>
       </div>
-      ${entry.confidence ? `<div class="confidence" role="note" tabindex="0" aria-label="${escapeHtml(entry.confidence.band)} confidence. ${escapeHtml(entry.confidence.explanation)}"><strong>${escapeHtml(entry.confidence.band)} confidence</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" aria-hidden="true">${escapeHtml(entry.confidence.explanation)}</span></div>` : ""}
+      ${entry.confidence ? confidenceBadge(entry.confidence.band, entry.confidence.explanation) : ""}
       ${message ? `<div class="notice" role="status"><strong>${message}</strong></div>` : ""}`;
   }
 
@@ -261,12 +546,17 @@ export class EngTransliterator extends HTMLElement {
     const showLatin = entry.inflection.latinScript !== "not_applicable";
     return `
       ${hasComponents ? `<div class="scope-controls" aria-label="Inflection scope"><button class="scope-button" data-scope="whole" aria-pressed="${!showComponents}">Together</button><button class="scope-button" data-scope="components" aria-pressed="${showComponents}">By component</button></div>` : ""}
-      ${showComponents ? this.componentView(entry) : this.paradigmTable(entry.inflection.whole, showLatin)}
-      <p class="footnote">Case forms appear only after their inflection rules and examples have been reviewed.</p>`;
+      ${showComponents ? this.componentView(entry) : this.paradigmTable(entry.inflection.whole, showLatin ? entry.inflection.latin : null)}
+      <p class="footnote">Case forms are generated from the stored Georgian stem and the recorded final pronounced sound of the Latin-script term.</p>`;
   }
 
-  paradigmTable(paradigm, showLatin) {
-    const rows = CASES.map(([key, label]) => `<tr><td>${label}</td><td class="${paradigm[key] ? "" : "pending"}">${paradigm[key] ?? "Awaiting confirmed rule"}</td>${showLatin ? '<td class="pending">Awaiting confirmed rule</td>' : ""}</tr>`).join("");
+  paradigmTable(paradigm, latinInflection) {
+    const showLatin = Boolean(latinInflection);
+    const rows = CASES.map(([key, label]) => {
+      const georgianForm = paradigm[key];
+      const latinForm = latinInflection?.paradigm[key];
+      return `<tr><td>${label}</td><td class="${georgianForm ? "" : "pending"}">${georgianForm ?? "Awaiting confirmed rule"}</td>${showLatin ? `<td class="${latinForm ? "" : "pending"}">${latinForm ? escapeHtml(latinForm) : "Awaiting confirmed rule"}</td>` : ""}</tr>`;
+    }).join("");
     return `<div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian script</th>${showLatin ? "<th>Latin-script term</th>" : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
@@ -275,7 +565,7 @@ export class EngTransliterator extends HTMLElement {
   }
 
   details(entry) {
-    const statusLabel = entry.status === "approved" ? "Approved entry (unmarked default)" : "Automatic suggestion";
+    const statusLabel = entry.status === "approved" ? "Approved entry (unmarked default)" : "Unreviewed candidate";
     return `<dl class="details">
       <dt>Editorial status</dt><dd>${statusLabel}</dd>
       <dt>Classification</dt><dd>${entry.lexicalClass} · ${entry.entityType}</dd>
@@ -342,7 +632,7 @@ export class EngTransliterator extends HTMLElement {
     const dialog = this.shadowRoot.querySelector("dialog");
     const form = dialog.querySelector("form");
     form.reset();
-    const isAlternative = this.currentEntry.status === "automatic";
+    const isAlternative = this.currentEntry.status === "candidate";
     dialog.querySelector("h3").textContent = isAlternative ? "Propose another spelling" : "Suggest a correction";
     dialog.querySelector(".dialog-context").textContent = `${this.currentEntry.headword} → ${this.currentEntry.georgian.spelling}`;
     dialog.querySelector(".term-field").hidden = true;
@@ -421,11 +711,15 @@ export class EngTransliterator extends HTMLElement {
     dialog.returnValue = "";
   }
 
-  renderEmpty(query, message = "") {
+  renderEmpty(query, message = "", filtered = false) {
     const rawQuery = String(query ?? "").trim();
     const safeQuery = escapeHtml(rawQuery) || "No search term";
     this.pendingQuery = rawQuery;
-    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty"><span class="status">No reviewed entry</span><h2>${safeQuery}</h2><p>We do not have a reviewed Georgian spelling for this term yet. Submit it for editorial review, with a proposed spelling or source if you have one.</p>${message ? `<div class="notice" role="status"><strong>${escapeHtml(message)}</strong></div>` : ""}<button class="action action-primary" type="button" data-submit>${icon("edit")} Submit term for review</button></section>`;
+    const explanation = filtered
+      ? "No entry matching the active filters was found. Clear or change the filters, or submit this term for editorial review."
+      : "We do not have a reviewed Georgian spelling for this term yet. You can intentionally generate an unreviewed candidate or submit the term directly for editorial review.";
+    this.shadowRoot.querySelector(".result-slot").innerHTML = `<section class="empty"><span class="status">${filtered ? "No filtered match" : "No reviewed entry"}</span><h2>${safeQuery}</h2><p>${explanation}</p>${message ? `<div class="notice" role="status"><strong>${escapeHtml(message)}</strong></div>` : ""}<div class="empty-actions"><button class="action action-primary" type="button" data-generate>Open generator</button><button class="action" type="button" data-submit>${icon("edit")} Submit term for review</button></div></section>`;
+    this.shadowRoot.querySelector("[data-generate]").addEventListener("click", () => this.openGenerator(rawQuery));
     this.shadowRoot.querySelector("[data-submit]").addEventListener("click", () => this.openNewEntryDialog(rawQuery));
   }
 }
