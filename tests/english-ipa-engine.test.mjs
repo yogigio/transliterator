@@ -101,6 +101,39 @@ test("applies the positional w rule from IPA rather than spelling", () => {
   assert.equal(medial.candidate.georgianForm, "დეველი");
 });
 
+test("writes no vowel for a syllabic word-final l", () => {
+  const apple = transcribeEnglishIpa({ ...baseMetadata, surface: "apple", readingType: "ordinary_word", ipa: "/ˈæpəl/", pronunciationSource: verified });
+  const table = transcribeEnglishIpa({ ...baseMetadata, surface: "table", readingType: "ordinary_word", ipa: "/ˈteɪbəl/", pronunciationSource: verified });
+  const cmudictStress = transcribeEnglishIpa({ ...baseMetadata, surface: "table", readingType: "ordinary_word", ipa: "/tˈeɪbəl/", pronunciationSource: verified });
+
+  assert.equal(apple.candidate.georgianForm, "ეპლი");
+  assert.equal(table.candidate.georgianForm, "ტეიბლი");
+  assert.equal(cmudictStress.candidate.georgianForm, "ტეიბლი");
+  assert.equal(apple.candidate.declensionClass, "consonant");
+  assert.equal(apple.trace.some((item) => item.ruleId === "english.ipa.schwa.syllabic-final-l"), true);
+});
+
+test("leaves every other schwa context to an editor", () => {
+  for (const ipa of ["/əˈbaʊt/", "/ˈæpəlz/", "/ˈæpəlɪŋ/", "/ˈæpəl.pai/", "/ˈɑːməl/"]) {
+    const result = transcribeEnglishIpa({ ...baseMetadata, surface: "x", readingType: "ordinary_word", ipa, pronunciationSource: verified });
+    if (ipa === "/ˈɑːməl/") {
+      assert.equal(result.candidate.georgianForm, "ამლი", ipa);
+    } else {
+      assert.equal(result.candidate, null, ipa);
+    }
+  }
+});
+
+test("renders /oʊ/ as ო before a consonant and ოუ word-finally", () => {
+  const microsoft = transcribeEnglishIpa({ ...baseMetadata, surface: "Microsoft", readingType: "ordinary_word", ipa: "/mˈaɪkɹˌoʊsˈɔːft/", pronunciationSource: verified });
+  const window = transcribeEnglishIpa({ ...baseMetadata, surface: "window", readingType: "ordinary_word", ipa: "/ˈwɪndoʊ/", pronunciationSource: verified });
+  const nato = transcribeEnglishIpa({ ...baseMetadata, surface: "NATO", readingType: "ordinary_word", ipa: "/ˈneɪtoʊ/", pronunciationSource: verified });
+
+  assert.equal(microsoft.candidate.georgianForm, "მაიკროსოფტი");
+  assert.equal(window.candidate.georgianForm, "უინდოუ");
+  assert.equal(nato.candidate.georgianForm, "ნეიტოუ");
+});
+
 test("withholds a candidate when schwa cannot yet be resolved", () => {
   const result = transcribeEnglishIpa({
     ...baseMetadata,

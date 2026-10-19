@@ -77,10 +77,36 @@ function mapW(tokens, index) {
   });
 }
 
+/**
+ * An unstressed schwa between a consonant and a word-final /l/ is a syllabic l
+ * ("apple" /ˈæpəl/ -> ეპლ-, "table" /ˈteɪbəl/ -> ტეიბლ-): Georgian writes no vowel
+ * there. Every other schwa context stays unresolved and goes to an editor.
+ */
+function mapSyllabicFinalL(tokens, index) {
+  const previous = surroundingPhoneme(tokens, index, -1);
+  const next = surroundingPhoneme(tokens, index, 1);
+  if (!previous || VOWELS.has(previous.value) || next?.value !== "l") return null;
+  const nextIndex = tokens.indexOf(next, index);
+  if (surroundingPhoneme(tokens, nextIndex, 1) !== null) return null;
+  return Object.freeze({ output: "", confidence: "medium", ruleId: "english.ipa.schwa.syllabic-final-l" });
+}
+
+/** /oʊ/ is ო before a consonant ("Microsoft" -> მაიკროსოფტ-) and ოუ only word-finally. */
+function mapOu(tokens, index) {
+  const next = surroundingPhoneme(tokens, index, 1);
+  if (!next) return null;
+  return Object.freeze({ output: "ო", confidence: "medium", ruleId: "english.ipa.oʊ.non-final" });
+}
+
 function mapToken(tokens, index) {
   const token = tokens[index];
   if (token.type !== "phoneme") return null;
   if (token.value === "w") return mapW(tokens, index);
+  if (token.value === "ə") return mapSyllabicFinalL(tokens, index);
+  if (token.value === "oʊ") {
+    const medial = mapOu(tokens, index);
+    if (medial) return medial;
+  }
   const direct = IPA_DIRECT_RULES[token.value];
   if (direct) return Object.freeze({ ...direct, ruleId: `english.ipa.${token.value}` });
   return null;
