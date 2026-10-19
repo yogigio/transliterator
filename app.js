@@ -1,11 +1,11 @@
-import "./src/transliterator-element.js?v=0.10.1";
-import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.1";
+import "./src/transliterator-element.js?v=0.10.2";
+import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.2";
 import {
   createFallbackPronunciationProvider,
   createHttpPronunciationProvider,
-} from "./src/pronunciation-provider.js?v=0.10.1";
-import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.10.1";
-import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.1";
+} from "./src/pronunciation-provider.js?v=0.10.2";
+import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.10.2";
+import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.2";
 
 const tool = document.querySelector("eng-transliterator");
 const themeToggle = document.querySelector(".theme-toggle");
@@ -31,12 +31,14 @@ tool.setCandidateResolver((request) => transliterationGenerator.generate(request
 
 function applyTheme(theme, persist = true) {
   const dark = theme === "dark";
-  document.body.classList.toggle("dark", dark);
+  if (themeToggle) document.body.classList.toggle("dark", dark);
   if (dark) tool.setAttribute("theme", "dark");
   else tool.removeAttribute("theme");
-  themeToggle.setAttribute("aria-pressed", String(dark));
-  themeToggle.textContent = dark ? "Light mode" : "Dark mode";
-  themeColor.content = dark ? "#171813" : "#f7f7f2";
+  if (themeToggle) {
+    themeToggle.setAttribute("aria-pressed", String(dark));
+    themeToggle.textContent = dark ? "Light mode" : "Dark mode";
+  }
+  if (themeColor) themeColor.content = dark ? "#171813" : "#f7f7f2";
   if (persist) localStorage.setItem("eng-transliterator-theme", theme);
 }
 
@@ -60,9 +62,15 @@ function updateMode(mode, term = "", replace = false) {
   history[replace ? "replaceState" : "pushState"]({}, "", url);
 }
 
-themeToggle.addEventListener("click", () => {
-  applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
-});
+if (themeToggle) {
+  themeToggle.addEventListener("click", () => {
+    applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
+  });
+} else {
+  const syncHostTheme = () => applyTheme(document.body.classList.contains("dark-mode") ? "dark" : "light", false);
+  syncHostTheme();
+  new MutationObserver(syncHostTheme).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+}
 
 tool.addEventListener("entrysearch", (event) => updateQuery(event.detail.query));
 tool.addEventListener("entryselect", (event) => updateQuery(event.detail.entry.headword));
@@ -79,9 +87,11 @@ window.addEventListener("popstate", () => {
   suppressUrlUpdate = false;
 });
 
-const savedTheme = localStorage.getItem("eng-transliterator-theme");
-const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-applyTheme(savedTheme || preferredTheme, false);
+if (themeToggle) {
+  const savedTheme = localStorage.getItem("eng-transliterator-theme");
+  const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  applyTheme(savedTheme || preferredTheme, false);
+}
 
 const initialUrl = new URL(window.location.href);
 const initialQuery = initialUrl.searchParams.get("q");

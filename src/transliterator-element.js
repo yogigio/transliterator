@@ -1,6 +1,6 @@
-import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.1";
-import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.1";
-import { styles } from "./transliterator-styles.js?v=0.10.1";
+import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.2";
+import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
+import { styles } from "./transliterator-styles.js?v=0.10.2";
 
 const icon = (name) => {
   const paths = {
@@ -30,6 +30,21 @@ const humanize = (value) => {
   const text = String(value ?? "").replaceAll("_", " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+const inflectionStateGuide = `
+  <details class="form-guide">
+    <summary><span>What do these linguistic fields mean?</span><span class="guide-action">Open field guide</span></summary>
+    <div class="guide-grid">
+      <div><strong>Inflection state</strong><p>Describes whether and how the Georgian form changes when it is used in different grammatical cases.</p></div>
+      <div><strong>Regular</strong><p>Case forms follow the standard pattern and can be generated reliably from the stem.</p></div>
+      <div><strong>Invariable</strong><p>The form stays exactly the same in every grammatical case; no case ending is added.</p></div>
+      <div><strong>Irregular</strong><p>One or more case forms do not follow the standard pattern and must be reviewed or entered individually.</p></div>
+      <div><strong>Pending review</strong><p>The inflection pattern has not been confirmed yet. Editors should not treat generated forms as approved.</p></div>
+      <div><strong>Stem</strong><p>The base used to build case forms. For consonant-final words, it usually omits nominative -ი.</p></div>
+      <div><strong>Final ი role</strong><p>Clarifies whether final ი is a removable case marker or an inseparable part of the original root.</p></div>
+      <div><strong>Transcription basis</strong><p>The pronunciation or established usage used to choose the Georgian spelling—not the person’s nationality.</p></div>
+    </div>
+  </details>`;
 
 const filterControls = ENTRY_FILTER_GROUPS.map((group) => `
   <fieldset class="filter-group">
@@ -70,6 +85,7 @@ template.innerHTML = `
         <button class="search-submit" type="submit">Search</button>
       </form>
       <form class="generator-form" hidden>
+        <div class="form-progress" aria-label="New transcription steps"><span class="is-current">1 <b>Classify</b></span><i></i><span>2 <b>Generate</b></span><i></i><span>3 <b>Review</b></span></div>
         <div class="generator-fields">
           <label class="generator-field generator-term"><span>English term</span><input name="term" autocomplete="off" required /></label>
           <label class="generator-field"><span>Term class</span><select name="lexicalClass" required><option value="">Select a class</option><option value="ordinary_word">Ordinary word</option><option value="proper_noun">Proper noun</option><option value="abbreviation">Abbreviation</option></select></label>
@@ -78,6 +94,7 @@ template.innerHTML = `
           <button class="generator-submit" type="submit">Generate candidate</button>
         </div>
         <p class="generator-help">Generation requires a reliable English IPA record. Orthographic guesses remain editor-only.</p>
+        ${inflectionStateGuide}
       </form>
       <div class="examples"><span>Try:</span></div>
     </div>
