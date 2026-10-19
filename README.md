@@ -57,6 +57,7 @@ src/ipa-normalizer.js              IPA notation normalization
 src/ipa-tokenizer.js               phoneme, stress, and boundary tokenizer
 src/english-ipa-engine.js          auditable Georgian candidate generator
 src/pronunciation-provider.js      validated in-memory and HTTP provider adapters
+src/open-pronunciation-sources.js  Wiktextract, CMUdict, and opt-in machine fallback adapters
 src/automatic-candidate-service.js pronunciation-to-candidate orchestration
 src/generator-request.js           generator metadata validation
 src/generation-policies.js         classification-to-strategy policy registry
@@ -68,6 +69,7 @@ tests/sample-provider.test.mjs     provider contract tests
 tests/ipa-tokenizer.test.mjs       IPA normalization and tokenization tests
 tests/english-ipa-engine.test.mjs  transcription policy and output tests
 tests/pronunciation-provider.test.mjs provider adapter contract tests
+tests/open-pronunciation-sources.test.mjs open-data and machine-fallback tests
 tests/automatic-candidate-service.test.mjs candidate orchestration tests
 tests/generator-request.test.mjs   generator validation and strategy tests
 tests/generation-policies.test.mjs classification policy tests
@@ -92,7 +94,41 @@ The submission UI treats a stem as optional supporting information. It is hidden
 
 Searches are reflected in the `?q=` URL parameter. Generator views add `?mode=generator`, so both modes can be bookmarked and browser Back/Forward navigation restores the corresponding interface. Theme preference is stored locally in the browser.
 
-The sample entry provider and pronunciation provider are deliberately replaceable. Production eng.ge can connect the component to the versioned `/transcription/v1` API and a pronunciation endpoint, while forks can implement local or remote providers with the same validated record shape. The browser demonstration contains only a small reviewed pronunciation regression corpus; it is not a general English pronunciation database.
+The sample entry provider and pronunciation provider are deliberately replaceable. The standalone host now requests the same-origin `GET /transcription/v1/pronunciations` endpoint before generation. The endpoint receives `term` and the selected `readingType` as query parameters and must return a validated pronunciation record such as:
+
+```json
+{
+  "term": "Wimbledon",
+  "language": "English",
+  "readingType": "ordinary_word",
+  "pronunciations": [
+    {
+      "ipa": "/ˈwɪmbəldən/",
+      "variety": "British English",
+      "source": { "label": "Licensed editorial dictionary", "reliability": "verified" }
+    }
+  ]
+}
+```
+
+Return `404` when no suitable record exists. Invalid records and provider failures are not converted into spelling guesses. The public client sends no provider credential: production eng.ge must keep third-party keys and licensed-source integration behind this endpoint.
+
+The standalone `index.html` explicitly enables the small reviewed regression corpus as a fallback so the static demonstration remains usable when the endpoint is absent. A production host can omit the `eng-ge-pronunciation-fallback` meta tag. Forks can change `eng-ge-pronunciation-endpoint` or implement the same validated provider contract. The regression corpus is not a general English pronunciation database.
+
+### Open pronunciation source pipeline
+
+The production endpoint should resolve pronunciation evidence in this order:
+
+1. editorially reviewed records and overrides;
+2. English Wiktionary data imported through Wiktextract/Kaikki;
+3. CMUdict General American records converted deterministically from ARPAbet to IPA;
+4. an optional machine or AI estimate only when every stored source misses.
+
+`src/open-pronunciation-sources.js` provides adapters and a composed pipeline for these tiers. Wiktextract data is labeled `community`, CMUdict conversion is labeled `converted`, and machine output is labeled `machine`. Dataset version, source URL, and license metadata travel with the pronunciation record.
+
+See [DATA_SOURCES.md](DATA_SOURCES.md) for source selection, attribution, update, and redistribution requirements.
+
+Machine fallback is disabled unless the server passes `allowMachineFallback: true`. The provider caches by normalized term and reading type, so a repeated request does not spend more inference tokens. A machine pronunciation can produce a visibly low-confidence last-resort draft, but it remains ineligible for the trusted public-candidate tier and always requires editorial review. The callback is vendor-neutral: a small local G2P model can be used without tokens, or a low-cost language model can return one short structured IPA response only after the open datasets miss.
 
 ## Linguistic rule boundary
 

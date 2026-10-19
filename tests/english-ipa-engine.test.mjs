@@ -18,6 +18,7 @@ test("transcribes a verified consonant-final English pronunciation", () => {
   assert.equal(result.candidate.georgianForm, "გიტჰაბი");
   assert.equal(result.candidate.finalRootVowel, "none");
   assert.equal(result.candidate.inflection.genitive, "გიტჰაბის");
+  assert.deepEqual(result.pronunciationSource, verified);
   assert.equal(result.publicEligible, true);
 });
 

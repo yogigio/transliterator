@@ -1,4 +1,4 @@
-import { ENGLISH_READING_TYPES, PRONUNCIATION_RELIABILITY } from "./english-ipa-rules.js";
+import { ENGLISH_READING_TYPES, PRONUNCIATION_RELIABILITY } from "./english-ipa-rules.js?v=0.10.1";
 
 export class PronunciationProviderError extends Error {
   constructor(code, message, options = {}) {
@@ -71,7 +71,11 @@ export function createInMemoryPronunciationProvider(records = []) {
   });
 }
 
-export function createHttpPronunciationProvider({ endpoint, fetchImpl = globalThis.fetch } = {}) {
+export function createHttpPronunciationProvider({
+  endpoint,
+  fetchImpl = globalThis.fetch,
+  credentials = "same-origin",
+} = {}) {
   if (typeof endpoint !== "string" || !endpoint.trim()) {
     throw new PronunciationProviderError("INVALID_ENDPOINT", "A pronunciation endpoint is required.");
   }
@@ -81,12 +85,17 @@ export function createHttpPronunciationProvider({ endpoint, fetchImpl = globalTh
 
   return Object.freeze({
     kind: "http",
-    async lookup(term, { signal } = {}) {
+    async lookup(term, { signal, readingType } = {}) {
       const url = new URL(endpoint, globalThis.location?.href ?? "http://localhost/");
       url.searchParams.set("term", String(term ?? "").trim());
+      if (readingType) url.searchParams.set("readingType", readingType);
       let response;
       try {
-        response = await fetchImpl(url, { headers: { accept: "application/json" }, signal });
+        response = await fetchImpl(url, {
+          credentials,
+          headers: { accept: "application/json" },
+          signal,
+        });
       } catch (error) {
         throw new PronunciationProviderError("PROVIDER_UNAVAILABLE", "Pronunciation provider could not be reached.", { cause: error });
       }
@@ -96,6 +105,24 @@ export function createHttpPronunciationProvider({ endpoint, fetchImpl = globalTh
       }
       const record = await response.json();
       return validatePronunciationRecord(record);
+    },
+  });
+}
+
+export function createFallbackPronunciationProvider(providers = []) {
+  const availableProviders = providers.filter((provider) => provider && typeof provider.lookup === "function");
+  if (!availableProviders.length) {
+    throw new PronunciationProviderError("MISSING_PROVIDER", "At least one pronunciation provider is required.");
+  }
+
+  return Object.freeze({
+    kind: "fallback_chain",
+    async lookup(term, options = {}) {
+      for (const provider of availableProviders) {
+        const record = await provider.lookup(term, options);
+        if (record) return record;
+      }
+      return null;
     },
   });
 }

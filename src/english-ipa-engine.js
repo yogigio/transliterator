@@ -4,7 +4,8 @@ import {
   IPA_DIRECT_RULES,
   IPA_VOWEL_TOKENS,
   PRONUNCIATION_RELIABILITY,
-} from "./english-ipa-rules.js";
+  PUBLIC_PRONUNCIATION_RELIABILITY,
+} from "./english-ipa-rules.js?v=0.10.1";
 import { tokenizeEnglishIpa } from "./ipa-tokenizer.js";
 import { inflectGeorgianStem } from "./georgian-inflector.js";
 
@@ -112,6 +113,10 @@ function confidenceFromTrace(trace) {
 export function transcribeEnglishIpa(input) {
   validateInput(input);
   const morphologyProfile = input.morphologyProfile ?? MORPHOLOGY_PROFILES.FOREIGN_TERM;
+  const pronunciationSource = Object.freeze({
+    ...input.pronunciationSource,
+    label: input.pronunciationSource.label.trim(),
+  });
   const tokenized = tokenizeEnglishIpa(input.ipa);
   const phonemes = tokenized.tokens.filter((token) => token.type === "phoneme");
   const unresolved = [];
@@ -137,7 +142,7 @@ export function transcribeEnglishIpa(input) {
     trace.push(Object.freeze({ input: token.value, output: mapped.output, ...mapped }));
   });
 
-  const reliable = input.pronunciationSource.reliability !== "unverified";
+  const reliable = PUBLIC_PRONUNCIATION_RELIABILITY.includes(input.pronunciationSource.reliability);
   const reviewReasons = [];
   if (!reliable) reviewReasons.push("pronunciation_source_not_verified");
   if (unresolved.length) reviewReasons.push("unresolved_ipa_context");
@@ -148,6 +153,7 @@ export function transcribeEnglishIpa(input) {
       language: input.language,
       variety: input.variety,
       readingType: input.readingType,
+      pronunciationSource,
       ipaOriginal: tokenized.original,
       ipaNormalized: tokenized.normalized,
       tokens: tokenized.tokens,
@@ -179,6 +185,7 @@ export function transcribeEnglishIpa(input) {
     language: input.language,
     variety: input.variety,
     readingType: input.readingType,
+    pronunciationSource,
     ipaOriginal: tokenized.original,
     ipaNormalized: tokenized.normalized,
     tokens: tokenized.tokens,

@@ -1,14 +1,30 @@
-import "./src/transliterator-element.js?v=0.8.3";
-import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.8.3";
-import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.8.3";
-import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.8.3";
+import "./src/transliterator-element.js?v=0.10.1";
+import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.1";
+import {
+  createFallbackPronunciationProvider,
+  createHttpPronunciationProvider,
+} from "./src/pronunciation-provider.js?v=0.10.1";
+import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.10.1";
+import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.1";
 
 const tool = document.querySelector("eng-transliterator");
 const themeToggle = document.querySelector(".theme-toggle");
 const themeColor = document.querySelector('meta[name="theme-color"]');
 let suppressUrlUpdate = false;
+const pronunciationEndpoint = document.querySelector('meta[name="eng-ge-pronunciation-endpoint"]')?.content.trim();
+const pronunciationFallback = document.querySelector('meta[name="eng-ge-pronunciation-fallback"]')?.content.trim();
+const pronunciationProviders = [];
+if (pronunciationEndpoint) {
+  pronunciationProviders.push(createHttpPronunciationProvider({ endpoint: pronunciationEndpoint }));
+}
+if (pronunciationFallback === "regression") {
+  pronunciationProviders.push(regressionPronunciationProvider);
+}
+const pronunciationProvider = pronunciationProviders.length === 1
+  ? pronunciationProviders[0]
+  : createFallbackPronunciationProvider(pronunciationProviders);
 const automaticCandidateService = createAutomaticCandidateService({
-  pronunciationProvider: regressionPronunciationProvider,
+  pronunciationProvider,
 });
 const transliterationGenerator = createTransliterationGenerator({ candidateService: automaticCandidateService });
 tool.setCandidateResolver((request) => transliterationGenerator.generate(request));

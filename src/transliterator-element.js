@@ -1,6 +1,6 @@
-import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.8.3";
-import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.8.3";
-import { styles } from "./transliterator-styles.js?v=0.8.3";
+import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.1";
+import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.1";
+import { styles } from "./transliterator-styles.js?v=0.10.1";
 
 const icon = (name) => {
   const paths = {
@@ -390,16 +390,20 @@ export class EngTransliterator extends HTMLElement {
       if (!this.candidateResolver) throw new Error("Generator service is unavailable.");
       const result = await this.candidateResolver(request);
       if (requestId !== this.candidateRequest) return;
-      if (result?.status === "candidate" && result.suggestions?.length) {
+      if (["candidate", "machine_candidate"].includes(result?.status) && result.suggestions?.length) {
         this.renderAutomaticCandidate(query, result);
       } else if (result?.status === "editor_review") {
         this.renderAutomaticReviewRequired(query, result);
       } else {
         this.renderGeneratorUnavailable(query, result);
       }
-    } catch {
+    } catch (error) {
       if (requestId === this.candidateRequest) {
-        this.renderGeneratorLanding(query, "The generator could not validate this request. Check its classification and try again.");
+        const providerUnavailable = ["PROVIDER_UNAVAILABLE", "PROVIDER_RESPONSE_ERROR"].includes(error?.code);
+        const message = providerUnavailable
+          ? "The pronunciation service is temporarily unavailable. No spelling was guessed; please try again later."
+          : "The generator could not validate this request. Check its classification and try again.";
+        this.renderGeneratorLanding(query, message);
       }
     }
   }
@@ -437,9 +441,10 @@ export class EngTransliterator extends HTMLElement {
   renderAutomaticCandidate(query, result) {
     const generated = result.suggestions[0];
     const candidate = generated.candidate;
-    const sourceLabel = generated.reviewReasons.length
+    const machineGenerated = result.status === "machine_candidate";
+    const sourceLabel = generated.pronunciationSource?.label ?? (generated.reviewReasons.length
       ? "Pronunciation requires review"
-      : "Reliable IPA pronunciation";
+      : "Reliable IPA pronunciation");
     const ending = candidate.declensionClass === "consonant" ? candidate.georgianForm.slice(-1) : "";
     const displayStem = ending ? candidate.georgianForm.slice(0, -1) : candidate.georgianForm;
     const alternatives = [...new Set(result.suggestions.slice(1).map((item) => item.candidate.georgianForm))];
@@ -453,16 +458,16 @@ export class EngTransliterator extends HTMLElement {
     this.pendingQuery = query;
     this.shadowRoot.querySelector(".result-slot").innerHTML = `
       <article class="result generated-result">
-        <div class="result-head"><div><span class="status">Generated candidate</span><h2>${escapeHtml(query)}</h2><div class="category">${escapeHtml(classification || humanize(result.readingType))} · Generated from English IPA</div></div><button class="copy" type="button" data-copy-generated>${icon("copy")}<span class="copy-label">Copy Georgian</span></button></div>
+        <div class="result-head"><div><span class="status">${machineGenerated ? "Machine estimate" : "Generated candidate"}</span><h2>${escapeHtml(query)}</h2><div class="category">${escapeHtml(classification || humanize(result.readingType))} · ${machineGenerated ? "Estimated pronunciation" : "Generated from English IPA"}</div></div><button class="copy" type="button" data-copy-generated>${icon("copy")}<span class="copy-label">Copy Georgian</span></button></div>
         <div class="pronunciation"><strong>${escapeHtml(generated.variety)}</strong><span class="ipa">${escapeHtml(generated.ipaOriginal)}</span><span class="source">${sourceLabel}</span></div>
         <section class="panel generated-panel">
-          <div class="overview-grid"><div><div class="label">Generated Georgian spelling</div><div class="georgian"><span>${escapeHtml(displayStem)}</span>${ending ? `<span class="ending">${escapeHtml(ending)}</span>` : ""}</div><p class="morph-note">Generated from a reliable IPA record. This is an unreviewed candidate, not an approved dictionary entry.</p></div><div class="facts"><div class="fact"><span>Generation policy</span><strong>${escapeHtml(result.policy?.label ?? "English IPA")}</strong></div><div class="fact"><span>Strategy</span><strong>${escapeHtml(result.policy?.strategy?.label ?? "IPA transcription")}</strong></div><div class="fact"><span>Stem</span><strong>${escapeHtml(candidate.georgianStem)}-</strong></div><div class="fact"><span>Declension class</span><strong>${escapeHtml(humanize(candidate.declensionClass))}</strong></div><div class="fact"><span>Final root vowel</span><strong>${escapeHtml(humanize(candidate.finalRootVowel))}</strong></div></div></div>
+          <div class="overview-grid"><div><div class="label">Generated Georgian spelling</div><div class="georgian"><span>${escapeHtml(displayStem)}</span>${ending ? `<span class="ending">${escapeHtml(ending)}</span>` : ""}</div><p class="morph-note">${machineGenerated ? "Generated from a machine-estimated pronunciation because no open or reviewed record was available. Treat this as a last-resort draft requiring editorial review." : "Generated from a reliable IPA record. This is an unreviewed candidate, not an approved dictionary entry."}</p></div><div class="facts"><div class="fact"><span>Generation policy</span><strong>${escapeHtml(result.policy?.label ?? "English IPA")}</strong></div><div class="fact"><span>Strategy</span><strong>${escapeHtml(result.policy?.strategy?.label ?? "IPA transcription")}</strong></div><div class="fact"><span>Stem</span><strong>${escapeHtml(candidate.georgianStem)}-</strong></div><div class="fact"><span>Declension class</span><strong>${escapeHtml(humanize(candidate.declensionClass))}</strong></div><div class="fact"><span>Final root vowel</span><strong>${escapeHtml(humanize(candidate.finalRootVowel))}</strong></div></div></div>
           ${alternatives.length ? `<p class="generated-alternatives"><strong>Pronunciation alternatives:</strong> ${alternatives.map(escapeHtml).join(", ")}</p>` : ""}
           ${this.generatorWarnings(result.warnings)}
           <details class="generated-inflection"><summary>Show generated inflections</summary><div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian form</th></tr></thead><tbody>${Object.entries(candidate.inflection).map(([caseName, form]) => `<tr><td>${escapeHtml(caseLabels[caseName] ?? caseName)}</td><td lang="ka">${escapeHtml(form)}</td></tr>`).join("")}</tbody></table></div></details>
           <div class="generated-footer">
             <div class="actions"><button class="action action-primary" type="button" data-submit>${icon("edit")} Submit for editorial review</button></div>
-            ${confidenceBadge(candidate.confidence, "Confidence describes rule coverage, not editorial approval.")}
+            ${confidenceBadge(machineGenerated ? "low" : candidate.confidence, machineGenerated ? "Low confidence because the pronunciation itself was machine-generated. Editorial review is required." : "Confidence describes rule coverage, not editorial approval.")}
           </div>
         </section>
       </article>`;

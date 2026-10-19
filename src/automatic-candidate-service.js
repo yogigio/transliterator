@@ -1,4 +1,4 @@
-import { transcribeEnglishIpa } from "./english-ipa-engine.js";
+import { transcribeEnglishIpa } from "./english-ipa-engine.js?v=0.10.1";
 
 export function createAutomaticCandidateService({ pronunciationProvider } = {}) {
   if (!pronunciationProvider || typeof pronunciationProvider.lookup !== "function") {
@@ -23,12 +23,16 @@ export function createAutomaticCandidateService({ pronunciationProvider } = {}) 
         morphologyProfile: options.morphologyProfile,
       }));
       const publicSuggestions = suggestions.filter(({ publicEligible, candidate }) => publicEligible && candidate);
+      const machineSuggestions = suggestions.filter(({ pronunciationSource, candidate }) => (
+        pronunciationSource?.reliability === "machine" && candidate
+      ));
+      const displayedSuggestions = publicSuggestions.length ? publicSuggestions : machineSuggestions;
 
       return Object.freeze({
-        status: publicSuggestions.length ? "candidate" : "editor_review",
+        status: publicSuggestions.length ? "candidate" : (machineSuggestions.length ? "machine_candidate" : "editor_review"),
         term: record.term,
         readingType: record.readingType,
-        suggestions: Object.freeze(publicSuggestions),
+        suggestions: Object.freeze(displayedSuggestions),
         editorialResults: Object.freeze(suggestions),
       });
     },

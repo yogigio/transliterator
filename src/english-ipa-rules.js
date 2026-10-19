@@ -10,7 +10,17 @@ export const ENGLISH_READING_TYPES = Object.freeze([
 export const PRONUNCIATION_RELIABILITY = Object.freeze([
   "verified",
   "editorial",
+  "community",
+  "converted",
+  "machine",
   "unverified",
+]);
+
+export const PUBLIC_PRONUNCIATION_RELIABILITY = Object.freeze([
+  "verified",
+  "editorial",
+  "community",
+  "converted",
 ]);
 
 export const IPA_DIRECT_RULES = Object.freeze({
