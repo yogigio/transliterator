@@ -1,4 +1,4 @@
-import "./src/transliterator-element.js?v=0.10.2";
+import "./src/transliterator-element.js?v=0.10.3";
 import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.2";
 import {
   createFallbackPronunciationProvider,
@@ -6,6 +6,7 @@ import {
 } from "./src/pronunciation-provider.js?v=0.10.2";
 import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.10.2";
 import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.2";
+import { createHttpEntryProvider } from "./src/entry-provider.js?v=0.10.3";
 
 const tool = document.querySelector("eng-transliterator");
 const themeToggle = document.querySelector(".theme-toggle");
@@ -13,6 +14,7 @@ const themeColor = document.querySelector('meta[name="theme-color"]');
 let suppressUrlUpdate = false;
 const pronunciationEndpoint = document.querySelector('meta[name="eng-ge-pronunciation-endpoint"]')?.content.trim();
 const pronunciationFallback = document.querySelector('meta[name="eng-ge-pronunciation-fallback"]')?.content.trim();
+const entrySearchEndpoint = document.querySelector('meta[name="eng-ge-entry-search-endpoint"]')?.content.trim();
 const pronunciationProviders = [];
 if (pronunciationEndpoint) {
   pronunciationProviders.push(createHttpPronunciationProvider({ endpoint: pronunciationEndpoint }));
@@ -28,6 +30,7 @@ const automaticCandidateService = createAutomaticCandidateService({
 });
 const transliterationGenerator = createTransliterationGenerator({ candidateService: automaticCandidateService });
 tool.setCandidateResolver((request) => transliterationGenerator.generate(request));
+if (entrySearchEndpoint) tool.setEntryResolver(createHttpEntryProvider({ endpoint: entrySearchEndpoint }));
 
 function applyTheme(theme, persist = true) {
   const dark = theme === "dark";

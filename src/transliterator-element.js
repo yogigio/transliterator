@@ -1,6 +1,6 @@
 import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.2";
-import { ENTRY_FILTER_GROUPS, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
-import { styles } from "./transliterator-styles.js?v=0.10.2";
+import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
+import { styles } from "./transliterator-styles.js?v=0.10.3";
 
 const icon = (name) => {
   const paths = {
@@ -80,6 +80,7 @@ template.innerHTML = `
             <span class="sr-only">Search for a name, place, brand, or term</span>
             <input autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="term-suggestions" aria-expanded="false" aria-label="Search for a name, place, brand, or term" />
           </label>
+          <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" hidden>×</button>
           <div class="suggestions" id="term-suggestions" role="listbox" aria-label="Matching terms" hidden></div>
         </div>
         <button class="search-submit" type="submit">Search</button>
@@ -135,6 +136,8 @@ export class EngTransliterator extends HTMLElement {
     this.suggestionIndex = -1;
     this.entryFilters = normalizeEntryFilters();
     this.candidateResolver = null;
+    this.entryResolver = null;
+    this.entryRequest = 0;
     this.candidateRequest = 0;
     this.mode = "search";
   }
@@ -144,6 +147,11 @@ export class EngTransliterator extends HTMLElement {
       throw new TypeError("Candidate resolver must be a function or null.");
     }
     this.candidateResolver = resolver;
+  }
+
+  setEntryResolver(resolver) {
+    if (resolver !== null && typeof resolver !== "function") throw new TypeError("Entry resolver must be a function or null.");
+    this.entryResolver = resolver;
   }
 
   setMode(mode, { term = "", emitEvent = true, render = true } = {}) {
@@ -187,14 +195,16 @@ export class EngTransliterator extends HTMLElement {
     const input = form.querySelector(".search-field input");
     input.value = this.currentEntry.headword;
     input.defaultValue = this.currentEntry.headword;
+    this.syncSearchClear();
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       this.hideSuggestions();
       this.search(input.value);
     });
-    input.addEventListener("input", () => this.updateSuggestions(input.value));
+    input.addEventListener("input", () => { this.syncSearchClear(); this.updateSuggestions(input.value); });
     input.addEventListener("focus", () => this.updateSuggestions(input.value));
     input.addEventListener("keydown", (event) => this.handleSuggestionKeydown(event));
+    form.querySelector(".search-clear").addEventListener("click", () => this.clearSearch());
     form.addEventListener("focusout", () => window.setTimeout(() => {
       if (!form.contains(this.shadowRoot.activeElement)) {
         this.hideSuggestions();
@@ -248,13 +258,21 @@ export class EngTransliterator extends HTMLElement {
     this.render();
   }
 
-  search(query) {
+  async search(query) {
     const normalizedQuery = String(query ?? "").trim();
     this.candidateRequest += 1;
     const input = this.shadowRoot.querySelector(".search-field input");
     input.value = normalizedQuery;
     input.defaultValue = normalizedQuery;
-    const [entry] = searchEntries(normalizedQuery, this.entryFilters);
+    this.syncSearchClear();
+    const requestId = ++this.entryRequest;
+    let remote = [];
+    if (this.entryResolver && normalizedQuery) {
+      try { remote = await this.entryResolver(normalizedQuery, this.entryFilters); } catch (_) { remote = []; }
+    }
+    if (requestId !== this.entryRequest) return;
+    const [entry] = [...filterEntries(remote, this.entryFilters), ...searchEntries(normalizedQuery, this.entryFilters)]
+      .filter((item, index, entries) => entries.findIndex((candidate) => candidate.headword.toLocaleLowerCase() === item.headword.toLocaleLowerCase()) === index);
     const filtered = hasActiveEntryFilters(this.entryFilters);
     if (entry) this.selectEntry(entry, false);
     else this.renderEmpty(normalizedQuery, "", filtered);
@@ -295,12 +313,20 @@ export class EngTransliterator extends HTMLElement {
     this.dispatchEvent(new CustomEvent("generatorrequest", { bubbles: true, composed: true, detail: { request } }));
   }
 
-  updateSuggestions(query) {
+  async updateSuggestions(query) {
     const input = this.shadowRoot.querySelector(".search-field input");
     const list = this.shadowRoot.querySelector(".suggestions");
     const value = String(query ?? "").trim();
     const shouldSearch = Boolean(value) || hasActiveEntryFilters(this.entryFilters);
-    const matches = shouldSearch ? searchEntries(value, this.entryFilters).slice(0, 6) : [];
+    const requestId = ++this.entryRequest;
+    let remote = [];
+    if (shouldSearch && value && this.entryResolver) {
+      try { remote = await this.entryResolver(value, this.entryFilters); } catch (_) { remote = []; }
+    }
+    if (requestId !== this.entryRequest) return;
+    const matches = shouldSearch ? [...filterEntries(remote, this.entryFilters), ...searchEntries(value, this.entryFilters)]
+      .filter((item, index, entries) => entries.findIndex((candidate) => candidate.headword.toLocaleLowerCase() === item.headword.toLocaleLowerCase()) === index)
+      .slice(0, 6) : [];
     list.replaceChildren();
     this.suggestionIndex = -1;
 
@@ -326,6 +352,11 @@ export class EngTransliterator extends HTMLElement {
   }
 
   handleSuggestionKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.clearSearch();
+      return;
+    }
     const list = this.shadowRoot.querySelector(".suggestions");
     const options = [...list.querySelectorAll('[role="option"]')];
     if (!options.length || list.hidden) return;
@@ -339,10 +370,24 @@ export class EngTransliterator extends HTMLElement {
     } else if (event.key === "Enter" && this.suggestionIndex >= 0) {
       event.preventDefault();
       options[this.suggestionIndex].click();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      this.hideSuggestions();
     }
+  }
+
+  clearSearch() {
+    this.entryRequest += 1;
+    const input = this.shadowRoot.querySelector(".search-field input");
+    input.value = "";
+    input.defaultValue = "";
+    this.hideSuggestions();
+    this.syncSearchClear();
+    input.focus();
+    this.dispatchEvent(new CustomEvent("entrysearch", { bubbles: true, composed: true, detail: { query: "", filters: this.entryFilters } }));
+  }
+
+  syncSearchClear() {
+    const input = this.shadowRoot.querySelector(".search-field input");
+    const button = this.shadowRoot.querySelector(".search-clear");
+    if (input && button) button.hidden = input.value.length === 0;
   }
 
   hideSuggestions() {
@@ -396,6 +441,7 @@ export class EngTransliterator extends HTMLElement {
     const input = this.shadowRoot.querySelector(".search-field input");
     input.value = entry.headword;
     input.defaultValue = entry.headword;
+    this.syncSearchClear();
     this.hideSuggestions();
     this.render();
     if (emitEvent) this.dispatchEvent(new CustomEvent("entryselect", { bubbles: true, composed: true, detail: { entry } }));
