@@ -1,5 +1,5 @@
 import "./src/transliterator-element.js?v=0.10.3";
-import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.4";
+import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.5";
 import {
   createFallbackPronunciationProvider,
   createHttpPronunciationProvider,

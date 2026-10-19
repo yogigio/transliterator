@@ -8,6 +8,7 @@ import {
 } from "./english-ipa-rules.js?v=0.10.1";
 import { tokenizeEnglishIpa } from "./ipa-tokenizer.js";
 import { inflectGeorgianStem } from "./georgian-inflector.js";
+import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.5";
 
 const VOWELS = new Set(IPA_VOWEL_TOKENS);
 const ROOT_FINAL_I = new Set(["iː", "i", "ɪ", "eɪ", "aɪ", "ɔɪ"]);
@@ -91,21 +92,34 @@ function mapSyllabicFinalL(tokens, index) {
   return Object.freeze({ output: "", confidence: "medium", ruleId: "english.ipa.schwa.syllabic-final-l" });
 }
 
-/** /oʊ/ is ო before a consonant ("Microsoft" -> მაიკროსოფტ-) and ოუ only word-finally. */
-function mapOu(tokens, index) {
-  const next = surroundingPhoneme(tokens, index, 1);
-  if (!next) return null;
-  return Object.freeze({ output: "ო", confidence: "medium", ruleId: "english.ipa.oʊ.non-final" });
+/**
+ * Vowels IPA cannot separate but the written word can (see spelling-guided-vowels.js):
+ * the written vowel unit that lines up with this nucleus picks the Georgian vowel.
+ */
+function mapSpellingGuided(token, kind, context) {
+  const ordinal = context.nucleusOrdinals.get(token);
+  const decision = context.guide && ordinal !== undefined ? context.guide.decide(ordinal, kind) : null;
+  if (!decision) return null;
+  return Object.freeze({
+    output: decision.output,
+    confidence: "medium",
+    ruleId: `english.ipa.${kind}.spelling`,
+    spelling: decision.letters,
+  });
 }
 
-function mapToken(tokens, index) {
+function mapToken(tokens, index, context) {
   const token = tokens[index];
   if (token.type !== "phoneme") return null;
   if (token.value === "w") return mapW(tokens, index);
-  if (token.value === "ə") return mapSyllabicFinalL(tokens, index);
+  if (token.value === "ə") return mapSyllabicFinalL(tokens, index) ?? mapSpellingGuided(token, "schwa", context);
   if (token.value === "oʊ") {
-    const medial = mapOu(tokens, index);
-    if (medial) return medial;
+    const guided = mapSpellingGuided(token, "ou", context);
+    if (guided) return guided;
+  }
+  if (token.value === "ɑː" || token.value === "ɑ") {
+    const guided = mapSpellingGuided(token, "back", context);
+    if (guided) return guided;
   }
   const direct = IPA_DIRECT_RULES[token.value];
   if (direct) return Object.freeze({ ...direct, ruleId: `english.ipa.${token.value}` });
@@ -149,13 +163,18 @@ export function transcribeEnglishIpa(input) {
   const trace = [];
   let georgianStem = "";
 
+  // An initialism is read letter by letter, so its spelling says nothing about its vowels.
+  const nuclei = tokenized.tokens.filter((token) => token.type === "phoneme" && VOWELS.has(token.value));
+  const guide = input.readingType === "initialism" ? null : createSpellingGuide(input.surface, nuclei.length);
+  const context = Object.freeze({ guide, nucleusOrdinals: new Map(nuclei.map((token, ordinal) => [token, ordinal])) });
+
   tokenized.tokens.forEach((token, index) => {
     if (token.type === "unknown") {
       unresolved.push(Object.freeze({ token: token.value, reason: "unsupported_ipa_symbol" }));
       return;
     }
     if (token.type !== "phoneme") return;
-    const mapped = mapToken(tokenized.tokens, index);
+    const mapped = mapToken(tokenized.tokens, index, context);
     if (!mapped) {
       const contextual = IPA_CONTEXTUAL_RULES[token.value];
       unresolved.push(Object.freeze({

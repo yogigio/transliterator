@@ -30,8 +30,8 @@ test("returns not_found when no reliable pronunciation record exists", async () 
 test("keeps unresolved and unverified results in the editorial channel", async () => {
   const provider = createInMemoryPronunciationProvider([
     {
-      term: "schwa", language: "English", readingType: "ordinary_word",
-      pronunciations: [{ ipa: "/ə/", variety: "General English", source }],
+      term: "unresolved", language: "English", readingType: "ordinary_word",
+      pronunciations: [{ ipa: "/ɜː/", variety: "General English", source }],
     },
     {
       term: "unverified", language: "English", readingType: "ordinary_word",
@@ -43,7 +43,7 @@ test("keeps unresolved and unverified results in the editorial channel", async (
   ]);
   const service = createAutomaticCandidateService({ pronunciationProvider: provider });
 
-  for (const term of ["schwa", "unverified"]) {
+  for (const term of ["unresolved", "unverified"]) {
     const result = await service.suggest(term);
     assert.equal(result.status, "editor_review");
     assert.deepEqual(result.suggestions, []);

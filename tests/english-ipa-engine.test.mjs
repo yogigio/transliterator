@@ -124,14 +124,38 @@ test("leaves every other schwa context to an editor", () => {
   }
 });
 
-test("renders /oʊ/ as ო before a consonant and ოუ word-finally", () => {
-  const microsoft = transcribeEnglishIpa({ ...baseMetadata, surface: "Microsoft", readingType: "ordinary_word", ipa: "/mˈaɪkɹˌoʊsˈɔːft/", pronunciationSource: verified });
-  const window = transcribeEnglishIpa({ ...baseMetadata, surface: "window", readingType: "ordinary_word", ipa: "/ˈwɪndoʊ/", pronunciationSource: verified });
-  const nato = transcribeEnglishIpa({ ...baseMetadata, surface: "NATO", readingType: "ordinary_word", ipa: "/ˈneɪtoʊ/", pronunciationSource: verified });
+const generate = (surface, ipa, overrides = {}) => transcribeEnglishIpa({
+  ...baseMetadata, surface, readingType: "ordinary_word", ipa, pronunciationSource: verified, ...overrides,
+}).candidate?.georgianForm ?? null;
 
-  assert.equal(microsoft.candidate.georgianForm, "მაიკროსოფტი");
-  assert.equal(window.candidate.georgianForm, "უინდოუ");
-  assert.equal(nato.candidate.georgianForm, "ნეიტოუ");
+test("lets the written vowel decide /oʊ/ between ო and ოუ", () => {
+  assert.equal(generate("Microsoft", "/mˈaɪkɹˌoʊsˈɔːft/"), "მაიკროსოფტი");
+  assert.equal(generate("Nokia", "/nˈoʊkiːə/"), "ნოკია");
+  assert.equal(generate("Snowden", "/snˈoʊdən/"), "სნოუდენი");
+  assert.equal(generate("window", "/ˈwɪndoʊ/"), "უინდოუ");
+  assert.equal(generate("NATO", "/ˈneɪtoʊ/"), "ნეიტო");
+});
+
+test("keeps the IPA default for /oʊ/ when the spelling cannot be aligned", () => {
+  assert.equal(generate("Microsoft Corp", "/mˈaɪkɹˌoʊsˈɔːft/"), "მაიკროუსოფტი");
+});
+
+test("resolves an unstressed schwa from the vowel letter that spells it", () => {
+  assert.equal(generate("Obama", "/ˌoʊbˈɑːmə/"), "ობამა");
+  assert.equal(generate("Nokia", "/nˈoʊkiːə/"), "ნოკია");
+  assert.equal(generate("Oracle", "/ˈɔːɹəkəl/"), "ორაკლი");
+  assert.equal(generate("Snowden", "/snˈoʊdən/"), "სნოუდენი");
+});
+
+test("lets the written vowel decide back /ɑ/ between ა and ო", () => {
+  assert.equal(generate("Photoshop", "/fˈoʊtˌoʊʃˌɑːp/"), "ფოტოშოპი");
+  assert.equal(generate("Carl", "/kˈɑːɹl/"), "კარლი");
+});
+
+test("does not guess when the spelling and the IPA cannot be lined up", () => {
+  assert.equal(generate("x", "/ˈæpəlɪŋ/"), null);
+  assert.equal(generate("Nokia Inc", "/nˈoʊkiːə/"), null);
+  assert.equal(generate("Nokia", "/nˈoʊkiːə/", { readingType: "initialism" }), null);
 });
 
 test("withholds a candidate when schwa cannot yet be resolved", () => {
