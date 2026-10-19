@@ -24,9 +24,32 @@ const MAX_PARSES = 64;
 
 const SCHWA_BY_LETTER = Object.freeze({ a: "ა", e: "ე", i: "ი", o: "ო", u: "ა", y: "ი" });
 
+/**
+ * Endings of English-origin proper names whose unstressed vowel is written ე
+ * although it is spelled with an a. The vowel unit must be the last one of the
+ * word, so -man in "Freeman" matches but the a in "Manchester" does not.
+ * -man is the least certain: names of German origin keep მან, which neither the
+ * IPA nor the spelling can show, so it is reported with low confidence.
+ */
+const NAME_SUFFIXES = Object.freeze([
+  Object.freeze({ ending: "land", after: "nd", id: "land", confidence: "medium" }),
+  Object.freeze({ ending: "ham", after: "m", id: "ham", confidence: "medium" }),
+  Object.freeze({ ending: "man", after: "n", id: "man", confidence: "low" }),
+]);
+
+function nameSuffixOf(unit) {
+  if (unit.text !== "a" || !unit.word) return null;
+  return NAME_SUFFIXES.find(({ ending, after }) => (
+    unit.word.length > ending.length && unit.word.endsWith(ending) && unit.after === after
+  )) ?? null;
+}
+
 const KINDS = Object.freeze({
   /** An unstressed schwa takes the Georgian vowel of the letter that spells it. */
-  schwa: (unit) => SCHWA_BY_LETTER[unit.text] ?? null,
+  schwa: (unit, options) => {
+    if (options.properName && nameSuffixOf(unit)) return "ე";
+    return SCHWA_BY_LETTER[unit.text] ?? null;
+  },
   /** /oʊ/: a plain o is ო; o+silent e, oa, ow and ou are ოუ. */
   ou: (unit) => {
     if (unit.text === "o") return unit.silentE ? "ოუ" : "ო";
@@ -74,7 +97,7 @@ function vowelRuns(word) {
       current = null;
     }
   }
-  return runs.map((run) => run.text);
+  return runs;
 }
 
 /** Every way to cut one vowel run into single letters and accepted digraphs. */
@@ -94,21 +117,27 @@ function partitions(run) {
 function wordVariants(word) {
   const runs = vowelRuns(word);
   if (!runs.length) return [[]];
-  const cuts = runs.map(partitions);
+  const cuts = runs.map((run) => partitions(run.text).map((parts) => {
+    let offset = run.start;
+    return parts.map((text) => {
+      offset += text.length;
+      return { text, silentE: false, word, after: word.slice(offset) };
+    });
+  }));
   if (cuts.some((options) => !options.length)) return [];
   let sequences = [[]];
   for (const options of cuts) {
     const next = [];
     for (const sequence of sequences) {
       for (const option of options) {
-        next.push([...sequence, ...option.map((text) => ({ text, silentE: false }))]);
+        next.push([...sequence, ...option]);
         if (next.length > MAX_PARSES) return [];
       }
     }
     sequences = next;
   }
   const variants = [...sequences];
-  const lastRun = runs.at(-1);
+  const lastRun = runs.at(-1).text;
   const endsInSilentE = word.endsWith("e") && lastRun === "e" && runs.length > 1 && !VOWEL_LETTERS.has(word.at(-2));
   if (endsInSilentE) {
     sequences.forEach((sequence) => {
@@ -140,20 +169,27 @@ function enumerateParses(surface, nucleusCount) {
 /**
  * @param {string} surface the written form of the term
  * @param {number} nucleusCount number of vowel nuclei in the IPA
- * @returns {null | {decide(ordinal: number, kind: "schwa"|"ou"|"back"): null | {output: string, letters: string}}}
+ * @returns {null | {decide(ordinal: number, kind: "schwa"|"ou"|"back", options?: {properName?: boolean}): null | {output: string, letters: string, suffix?: string, confidence: string}}}
  */
 export function createSpellingGuide(surface, nucleusCount) {
   if (!Number.isInteger(nucleusCount) || nucleusCount < 1) return null;
   const parses = enumerateParses(surface, nucleusCount);
   if (!parses.length) return null;
   return Object.freeze({
-    decide(ordinal, kind) {
+    decide(ordinal, kind, options = {}) {
       const rule = KINDS[kind];
       if (!rule || ordinal < 0 || ordinal >= nucleusCount) return null;
-      const outputs = parses.map((parse) => rule(parse[ordinal]));
+      const outputs = parses.map((parse) => rule(parse[ordinal], options));
       if (outputs.some((output) => output === null) || new Set(outputs).size !== 1) return null;
       const letters = [...new Set(parses.map((parse) => parse[ordinal].text))].join("/");
-      return Object.freeze({ output: outputs[0], letters });
+      const suffixes = parses.map((parse) => (kind === "schwa" && options.properName ? nameSuffixOf(parse[ordinal]) : null));
+      const suffix = suffixes.every((item) => item && item.id === suffixes[0]?.id) ? suffixes[0] : null;
+      return Object.freeze({
+        output: outputs[0],
+        letters,
+        confidence: suffix?.confidence ?? "medium",
+        ...(suffix ? { suffix: suffix.id } : {}),
+      });
     },
   });
 }

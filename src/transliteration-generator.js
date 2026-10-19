@@ -15,6 +15,7 @@ export function createTransliterationGenerator({ candidateService } = {}) {
         generationPolicy: policy.id,
         readingType: policy.strategy.expectedReadingType,
         morphologyProfile: policy.morphologyProfile,
+        lexicalClass: request.lexicalClass,
       });
       const warnings = policy.checks.map(({ message }) => message);
 

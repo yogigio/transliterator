@@ -1,11 +1,11 @@
 import "./src/transliterator-element.js?v=0.10.3";
-import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.5";
+import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.6";
 import {
   createFallbackPronunciationProvider,
   createHttpPronunciationProvider,
 } from "./src/pronunciation-provider.js?v=0.10.2";
 import { regressionPronunciationProvider } from "./src/regression-pronunciations.js?v=0.10.2";
-import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.2";
+import { createTransliterationGenerator } from "./src/transliteration-generator.js?v=0.10.6";
 import { createHttpEntryProvider } from "./src/entry-provider.js?v=0.10.3";
 
 const tool = document.querySelector("eng-transliterator");

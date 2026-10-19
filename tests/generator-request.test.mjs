@@ -86,3 +86,16 @@ test("passes the resolved policy and reading strategy to the candidate service",
   assert.equal(result.policy.label, "Geographic name");
   assert.match(result.warnings[0], /exonym/);
 });
+
+test("passes the lexical class through so name-suffix rules reach the engine", async () => {
+  const provider = createInMemoryPronunciationProvider([{
+    term: "Portland", language: "English", readingType: "ordinary_word",
+    pronunciations: [{ ipa: "/ˈpɔːɹtlənd/", variety: "General American", source: { label: "Editorial dictionary", reliability: "verified" } }],
+  }]);
+  const generator = createTransliterationGenerator({ candidateService: createAutomaticCandidateService({ pronunciationProvider: provider }) });
+
+  const name = await generator.generate({ term: "Portland", lexicalClass: "proper_noun", entityType: "geographic_name" });
+  const word = await generator.generate({ term: "Portland", lexicalClass: "ordinary_word" });
+  assert.equal(name.suggestions[0].candidate.georgianForm, "პორტლენდი");
+  assert.equal(word.suggestions[0].candidate.georgianForm, "პორტლანდი");
+});

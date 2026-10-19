@@ -152,6 +152,37 @@ test("lets the written vowel decide back /ɑ/ between ა and ო", () => {
   assert.equal(generate("Carl", "/kˈɑːɹl/"), "კარლი");
 });
 
+const generateName = (surface, ipa) => transcribeEnglishIpa({
+  ...baseMetadata, surface, readingType: "ordinary_word", lexicalClass: "proper_noun", ipa, pronunciationSource: verified,
+});
+
+test("writes ე in the unstressed -land, -ham and -man endings of proper names", () => {
+  assert.equal(generateName("Portland", "/ˈpɔːɹtlənd/").candidate.georgianForm, "პორტლენდი");
+  assert.equal(generateName("Gotham", "/ˈɡɒθəm/").candidate.georgianForm, "გოთემი");
+  assert.equal(generateName("Durham", "/ˈdʌɹəm/").candidate.georgianForm, "დარემი");
+  assert.equal(generateName("Freeman", "/ˈfɹiːmən/").candidate.georgianForm, "ფრიმენი");
+  assert.equal(generateName("Hackman", "/ˈhækmən/").candidate.georgianForm, "ჰეკმენი");
+});
+
+test("reports the origin-dependent -man ending with low confidence", () => {
+  const freeman = generateName("Freeman", "/ˈfɹiːmən/");
+  const portland = generateName("Portland", "/ˈpɔːɹtlənd/");
+  assert.equal(freeman.candidate.confidence, "low");
+  assert.equal(freeman.trace.some((item) => item.ruleId === "english.ipa.name-suffix.man"), true);
+  assert.equal(portland.candidate.confidence, "medium");
+});
+
+test("applies the name-suffix endings only to proper names", () => {
+  assert.equal(generate("Portland", "/ˈpɔːɹtlənd/"), "პორტლანდი");
+  assert.equal(generate("Freeman", "/ˈfɹiːmən/"), "ფრიმანი");
+  assert.equal(generate("Gotham", "/ˈɡɒθəm/", { lexicalClass: "abbreviation" }), "გოთამი");
+});
+
+test("leaves other a spellings in a proper name to the ordinary schwa rule", () => {
+  assert.equal(generateName("Obama", "/ˌoʊbˈɑːmə/").candidate.georgianForm, "ობამა");
+  assert.equal(generateName("Nokia", "/nˈoʊkiːə/").candidate.georgianForm, "ნოკია");
+});
+
 test("does not guess when the spelling and the IPA cannot be lined up", () => {
   assert.equal(generate("x", "/ˈæpəlɪŋ/"), null);
   assert.equal(generate("Nokia Inc", "/nˈoʊkiːə/"), null);

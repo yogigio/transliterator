@@ -8,7 +8,7 @@ import {
 } from "./english-ipa-rules.js?v=0.10.1";
 import { tokenizeEnglishIpa } from "./ipa-tokenizer.js";
 import { inflectGeorgianStem } from "./georgian-inflector.js";
-import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.5";
+import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.6";
 
 const VOWELS = new Set(IPA_VOWEL_TOKENS);
 const ROOT_FINAL_I = new Set(["iː", "i", "ɪ", "eɪ", "aɪ", "ɔɪ"]);
@@ -50,6 +50,9 @@ function validateInput(input) {
     || !PRONUNCIATION_RELIABILITY.includes(input.pronunciationSource.reliability)
   ) {
     throw new EnglishIpaEngineError("PRONUNCIATION_SOURCE_REQUIRED", "Pronunciation reliability metadata is required.");
+  }
+  if (input.lexicalClass != null && !["ordinary_word", "proper_noun", "abbreviation"].includes(input.lexicalClass)) {
+    throw new EnglishIpaEngineError("INVALID_LEXICAL_CLASS", "lexicalClass must be ordinary_word, proper_noun, or abbreviation.");
   }
   if (
     input.morphologyProfile != null
@@ -98,12 +101,14 @@ function mapSyllabicFinalL(tokens, index) {
  */
 function mapSpellingGuided(token, kind, context) {
   const ordinal = context.nucleusOrdinals.get(token);
-  const decision = context.guide && ordinal !== undefined ? context.guide.decide(ordinal, kind) : null;
+  const decision = context.guide && ordinal !== undefined
+    ? context.guide.decide(ordinal, kind, { properName: context.properName })
+    : null;
   if (!decision) return null;
   return Object.freeze({
     output: decision.output,
-    confidence: "medium",
-    ruleId: `english.ipa.${kind}.spelling`,
+    confidence: decision.confidence,
+    ruleId: decision.suffix ? `english.ipa.name-suffix.${decision.suffix}` : `english.ipa.${kind}.spelling`,
     spelling: decision.letters,
   });
 }
@@ -166,7 +171,7 @@ export function transcribeEnglishIpa(input) {
   // An initialism is read letter by letter, so its spelling says nothing about its vowels.
   const nuclei = tokenized.tokens.filter((token) => token.type === "phoneme" && VOWELS.has(token.value));
   const guide = input.readingType === "initialism" ? null : createSpellingGuide(input.surface, nuclei.length);
-  const context = Object.freeze({ guide, nucleusOrdinals: new Map(nuclei.map((token, ordinal) => [token, ordinal])) });
+  const context = Object.freeze({ guide, properName: input.lexicalClass === "proper_noun", nucleusOrdinals: new Map(nuclei.map((token, ordinal) => [token, ordinal])) });
 
   tokenized.tokens.forEach((token, index) => {
     if (token.type === "unknown") {

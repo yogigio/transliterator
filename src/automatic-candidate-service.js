@@ -1,4 +1,4 @@
-import { transcribeEnglishIpa } from "./english-ipa-engine.js?v=0.10.5";
+import { transcribeEnglishIpa } from "./english-ipa-engine.js?v=0.10.6";
 
 export function createAutomaticCandidateService({ pronunciationProvider } = {}) {
   if (!pronunciationProvider || typeof pronunciationProvider.lookup !== "function") {
@@ -21,6 +21,7 @@ export function createAutomaticCandidateService({ pronunciationProvider } = {}) 
         ipa: pronunciation.ipa,
         pronunciationSource: pronunciation.source,
         morphologyProfile: options.morphologyProfile,
+        lexicalClass: options.lexicalClass,
       }));
       const publicSuggestions = suggestions.filter(({ publicEligible, candidate }) => publicEligible && candidate);
       const machineSuggestions = suggestions.filter(({ pronunciationSource, candidate }) => (
