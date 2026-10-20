@@ -26,6 +26,9 @@ const safeHref = (value) => {
   }
 };
 
+/** Pause in typing before the hosted entry search is asked; keeps requests to one per burst. */
+const SUGGEST_DEBOUNCE_MS = 250;
+
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -337,6 +340,14 @@ export class EngTransliterator extends HTMLElement {
     const requestId = ++this.entryRequest;
     let remote = [];
     if (shouldSearch && value && this.entryResolver) {
+      // Wait for a pause in typing: one request per burst of keystrokes, not one per key.
+      await new Promise((resolve) => {
+        window.clearTimeout(this.suggestTimer);
+        this.suggestResolve?.();
+        this.suggestResolve = resolve;
+        this.suggestTimer = window.setTimeout(resolve, SUGGEST_DEBOUNCE_MS);
+      });
+      if (requestId !== this.entryRequest) return;
       try { remote = await this.entryResolver(value, this.entryFilters); } catch (_) { remote = []; }
     }
     if (requestId !== this.entryRequest) return;
