@@ -14,6 +14,18 @@ const icon = (name) => {
   return `<span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24">${paths[name]}</svg></span>`;
 };
 
+/** Only same-site paths and https links may become an href; anything else (javascript:, data:, //host) is dropped. */
+const safeHref = (value) => {
+  const text = String(value ?? "").trim();
+  if (/^\/(?![/\\])/u.test(text)) return text;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+};
+
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -526,7 +538,7 @@ export class EngTransliterator extends HTMLElement {
     this.shadowRoot.querySelector(".result-slot").innerHTML = `
       <article class="result generated-result">
         <div class="result-head"><div><span class="status">${machineGenerated ? "Machine estimate" : "Generated candidate"}</span><h2>${escapeHtml(query)}</h2><div class="category">${escapeHtml(classification || humanize(result.readingType))} · ${machineGenerated ? "Estimated pronunciation" : "Generated from English IPA"}</div></div><button class="copy" type="button" data-copy-generated>${icon("copy")}<span class="copy-label">Copy Georgian</span></button></div>
-        <div class="pronunciation"><strong>${escapeHtml(generated.variety)}</strong><span class="ipa">${escapeHtml(generated.ipaOriginal)}</span><span class="source">${sourceLabel}</span></div>
+        <div class="pronunciation"><strong>${escapeHtml(generated.variety)}</strong><span class="ipa">${escapeHtml(generated.ipaOriginal)}</span><span class="source">${escapeHtml(sourceLabel)}</span></div>
         <section class="panel generated-panel">
           <div class="overview-grid"><div><div class="label">Generated Georgian spelling</div><div class="georgian"><span>${escapeHtml(displayStem)}</span>${ending ? `<span class="ending">${escapeHtml(ending)}</span>` : ""}</div><p class="morph-note">${machineGenerated ? "Generated from a machine-estimated pronunciation because no open or reviewed record was available. Treat this as a last-resort draft requiring editorial review." : "Generated from a reliable IPA record. This is an unreviewed candidate, not an approved dictionary entry."}</p></div><div class="facts"><div class="fact"><span>Generation policy</span><strong>${escapeHtml(result.policy?.label ?? "English IPA")}</strong></div><div class="fact"><span>Strategy</span><strong>${escapeHtml(result.policy?.strategy?.label ?? "IPA transcription")}</strong></div><div class="fact"><span>Stem</span><strong>${escapeHtml(candidate.georgianStem)}-</strong></div><div class="fact"><span>Declension class</span><strong>${escapeHtml(humanize(candidate.declensionClass))}</strong></div><div class="fact"><span>Final root vowel</span><strong>${escapeHtml(humanize(candidate.finalRootVowel))}</strong></div></div></div>
           ${alternatives.length ? `<p class="generated-alternatives"><strong>Pronunciation alternatives:</strong> ${alternatives.map(escapeHtml).join(", ")}</p>` : ""}
@@ -568,19 +580,19 @@ export class EngTransliterator extends HTMLElement {
         <div class="result-head">
           <div>
             ${entry.status === "candidate" ? '<span class="status">Unreviewed candidate</span>' : ""}
-            <h2>${entry.headword}</h2>
-            <div class="category">${entry.lexicalClass} · ${entry.entityType}</div>
-            <div class="source-context">Source: ${this.sourceDisplay(entry)}</div>
+            <h2>${escapeHtml(entry.headword)}</h2>
+            <div class="category">${escapeHtml(entry.lexicalClass)} · ${escapeHtml(entry.entityType)}</div>
+            <div class="source-context">Source: ${escapeHtml(this.sourceDisplay(entry))}</div>
             ${entry.fullForm ? `<div class="expanded-form"><span>Full form:</span> ${escapeHtml(entry.fullForm)}</div>` : ""}
           </div>
           <button class="copy" type="button" aria-label="Copy Georgian spelling">${icon("copy")}<span class="copy-label">Copy Georgian</span></button>
         </div>
         <div class="pronunciation">
           <div class="segments" aria-label="Pronunciation variety">
-            ${Object.entries(entry.pronunciations).map(([key, item]) => `<button type="button" data-dialect="${key}" aria-pressed="${this.dialect === key}">${item.label}</button>`).join("")}
+            ${Object.entries(entry.pronunciations).map(([key, item]) => `<button type="button" data-dialect="${escapeHtml(key)}" aria-pressed="${this.dialect === key}">${escapeHtml(item.label)}</button>`).join("")}
           </div>
-          <span class="ipa">${pronunciation.ipa}</span>
-          <span class="source">${pronunciation.source}</span>
+          <span class="ipa">${escapeHtml(pronunciation.ipa)}</span>
+          <span class="source">${escapeHtml(pronunciation.source)}</span>
         </div>
         <div class="tabs" role="tablist" aria-label="Entry sections">
           ${[["overview", "Overview"], ["inflection", "Inflection"], ["details", "Entry details"]].map(([key, label]) => `<button class="tab" type="button" role="tab" data-tab="${key}" aria-selected="${this.activeTab === key}">${label}</button>`).join("")}
@@ -601,13 +613,13 @@ export class EngTransliterator extends HTMLElement {
       <div class="overview-grid">
         <div>
           <div class="label">Georgian spelling</div>
-          <div class="georgian" aria-label="${georgian.spelling}"><span>${stemDisplay}</span>${georgian.ending ? `<span class="ending">${georgian.ending}</span>` : ""}</div>
-          <p class="morph-note">${georgian.explanation}</p>
+          <div class="georgian" aria-label="${escapeHtml(georgian.spelling)}"><span>${escapeHtml(stemDisplay)}</span>${georgian.ending ? `<span class="ending">${escapeHtml(georgian.ending)}</span>` : ""}</div>
+          <p class="morph-note">${escapeHtml(georgian.explanation)}</p>
         </div>
         <div class="facts">
-          <div class="fact"><span>Stem</span><strong>${georgian.stem}-</strong></div>
-          <div class="fact"><span>Ending type</span><strong>${georgian.endingClass}</strong></div>
-          <div class="fact"><span>Final ი</span><strong>${georgian.finalIRole}</strong></div>
+          <div class="fact"><span>Stem</span><strong>${escapeHtml(georgian.stem)}-</strong></div>
+          <div class="fact"><span>Ending type</span><strong>${escapeHtml(georgian.endingClass)}</strong></div>
+          <div class="fact"><span>Final ი</span><strong>${escapeHtml(georgian.finalIRole)}</strong></div>
         </div>
       </div>
       ${entry.rejectedForms?.length ? this.rejectedForms(entry.rejectedForms) : ""}
@@ -616,13 +628,13 @@ export class EngTransliterator extends HTMLElement {
         <button class="action" type="button" data-correct>${icon("edit")} ${entry.status === "candidate" ? "Propose another spelling" : "Suggest a correction"}</button>
       </div>
       ${entry.confidence ? confidenceBadge(entry.confidence.band, entry.confidence.explanation) : ""}
-      ${message ? `<div class="notice" role="status"><strong>${message}</strong></div>` : ""}`;
+      ${message ? `<div class="notice" role="status"><strong>${escapeHtml(message)}</strong></div>` : ""}`;
   }
 
   rejectedForms(forms) {
     return `<section class="rejected-forms" aria-labelledby="rejected-forms-title">
       <div><div class="label" id="rejected-forms-title">Forms to avoid</div><p>These recorded spellings are incorrect for this entry.</p></div>
-      <ul>${forms.map((form) => `<li><s>${form}</s></li>`).join("")}</ul>
+      <ul>${forms.map((form) => `<li><s>${escapeHtml(form)}</s></li>`).join("")}</ul>
     </section>`;
   }
 
@@ -641,30 +653,30 @@ export class EngTransliterator extends HTMLElement {
     const rows = CASES.map(([key, label]) => {
       const georgianForm = paradigm[key];
       const latinForm = latinInflection?.paradigm[key];
-      return `<tr><td>${label}</td><td class="${georgianForm ? "" : "pending"}">${georgianForm ?? "Awaiting confirmed rule"}</td>${showLatin ? `<td class="${latinForm ? "" : "pending"}">${latinForm ? escapeHtml(latinForm) : "Awaiting confirmed rule"}</td>` : ""}</tr>`;
+      return `<tr><td>${label}</td><td class="${georgianForm ? "" : "pending"}">${georgianForm ? escapeHtml(georgianForm) : "Awaiting confirmed rule"}</td>${showLatin ? `<td class="${latinForm ? "" : "pending"}">${latinForm ? escapeHtml(latinForm) : "Awaiting confirmed rule"}</td>` : ""}</tr>`;
     }).join("");
     return `<div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian script</th>${showLatin ? "<th>Latin-script term</th>" : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   componentView(entry) {
-    return `<div class="component-list">${entry.components.map((component) => `<div class="component"><span><strong>${component.georgian}</strong><br><small>${component.source}</small></span><span>${component.role}</span><small>Paradigm awaiting confirmed rule</small></div>`).join("")}</div>`;
+    return `<div class="component-list">${entry.components.map((component) => `<div class="component"><span><strong>${escapeHtml(component.georgian)}</strong><br><small>${escapeHtml(component.source)}</small></span><span>${escapeHtml(component.role)}</span><small>Paradigm awaiting confirmed rule</small></div>`).join("")}</div>`;
   }
 
   details(entry) {
     const statusLabel = entry.status === "approved" ? "Approved entry (unmarked default)" : "Unreviewed candidate";
     return `<dl class="details">
       <dt>Editorial status</dt><dd>${statusLabel}</dd>
-      <dt>Classification</dt><dd>${entry.lexicalClass} · ${entry.entityType}</dd>
+      <dt>Classification</dt><dd>${escapeHtml(entry.lexicalClass)} · ${escapeHtml(entry.entityType)}</dd>
       ${entry.fullForm ? `<dt>Full form</dt><dd>${escapeHtml(entry.fullForm)}</dd>` : ""}
       ${entry.abbreviationType ? `<dt>Abbreviation type</dt><dd>${escapeHtml(entry.abbreviationType)}</dd>` : ""}
-      <dt>Source language</dt><dd>${this.sourceDisplay(entry)}${entry.sourceVariety ? ` · ${entry.sourceVariety}` : ""}</dd>
-      <dt>Transcription basis</dt><dd>${entry.transcriptionBasis}</dd>
-      <dt>Method</dt><dd>${entry.details.method}</dd>
-      <dt>Pronunciations</dt><dd>${Object.values(entry.pronunciations).map((item) => item.label).join(", ")}</dd>
-      <dt>Rule or data version</dt><dd>${entry.details.version}</dd>
-      <dt>Last reviewed</dt><dd>${entry.details.reviewed}</dd>
-      <dt>Entry identifier</dt><dd><code>${entry.id}</code></dd>
-      ${entry.details.dictionaryUrl ? `<dt>Related resource</dt><dd><a href="${entry.details.dictionaryUrl}" target="_blank" rel="noopener noreferrer">Open eng.ge Dictionary <span class="sr-only">(opens in a new tab)</span></a></dd>` : ""}
+      <dt>Source language</dt><dd>${escapeHtml(this.sourceDisplay(entry))}${entry.sourceVariety ? ` · ${escapeHtml(entry.sourceVariety)}` : ""}</dd>
+      <dt>Transcription basis</dt><dd>${escapeHtml(entry.transcriptionBasis)}</dd>
+      <dt>Method</dt><dd>${escapeHtml(entry.details.method)}</dd>
+      <dt>Pronunciations</dt><dd>${Object.values(entry.pronunciations).map((item) => escapeHtml(item.label)).join(", ")}</dd>
+      <dt>Rule or data version</dt><dd>${escapeHtml(entry.details.version)}</dd>
+      <dt>Last reviewed</dt><dd>${escapeHtml(entry.details.reviewed)}</dd>
+      <dt>Entry identifier</dt><dd><code>${escapeHtml(entry.id)}</code></dd>
+      ${safeHref(entry.details.dictionaryUrl) ? `<dt>Related resource</dt><dd><a href="${escapeHtml(safeHref(entry.details.dictionaryUrl))}" target="_blank" rel="noopener noreferrer">Open eng.ge Dictionary <span class="sr-only">(opens in a new tab)</span></a></dd>` : ""}
     </dl>`;
   }
 

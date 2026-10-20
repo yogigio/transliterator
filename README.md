@@ -150,6 +150,10 @@ A case with several accepted forms is one string, `"A / B"`. A case the editors 
 
 Browsers only allow a page to call another origin's API if that server sends CORS headers. A deployment serving its own API from the same origin needs nothing. eng.ge's hosted read-only endpoints (`https://eng.ge/transcription/v1/entries` and `https://eng.ge/transcription/v1/pronunciations`, `GET` only) send `Access-Control-Allow-Origin: *` and never allow credentials, so a page on your own site or on `localhost` can point the two meta tags at them without a key. Responses are cacheable and the service has no uptime guarantee or published rate limit, so cache what you fetch and keep the request rate modest; the write and account endpoints are not open to other origins.
 
+### Treat API data as untrusted
+
+The component renders every API-supplied string through `escapeHtml()` before it reaches `innerHTML`, and only same-site paths or `https:` URLs may become a link (`javascript:` and `data:` links are dropped). It does this because the data comes from a network and, upstream, from community-edited sources such as Wiktionary. If you add rendering code, keep to the same rule: no API field goes into markup unescaped.
+
 ### Open pronunciation source pipeline
 
 The production endpoint should resolve pronunciation evidence in this order:
