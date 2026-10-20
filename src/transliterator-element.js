@@ -1,6 +1,6 @@
 import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.2";
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
-import { styles } from "./transliterator-styles.js?v=0.10.3";
+import { styles } from "./transliterator-styles.js?v=0.10.11";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
 
 const icon = (name) => {
@@ -40,6 +40,18 @@ const confidenceBadge = (band, explanation) => {
   const label = `${String(band ?? "").toLowerCase()} confidence`;
   const displayLabel = label.charAt(0).toUpperCase() + label.slice(1);
   return `<div class="confidence" role="note" tabindex="0" aria-label="${escapeHtml(displayLabel)}. ${escapeHtml(explanation)}"><strong>${escapeHtml(displayLabel)}</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
+};
+
+/**
+ * An editorially approved entry shows this instead of a confidence label.
+ * Confidence is the evidence an editor documents BEFORE approving; once the
+ * entry is approved, a confidence band beside it would read as the editors
+ * doubting their own decision. Candidates keep the confidence label.
+ */
+const approvedBadge = (reviewed) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/u.test(String(reviewed ?? "")) ? ` Last reviewed ${reviewed}.` : "";
+  const explanation = `Reviewed and approved by eng.ge editors.${date}`;
+  return `<div class="confidence approved" role="note" tabindex="0" aria-label="Editorially approved. ${escapeHtml(explanation)}"><strong>Editorially approved</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
 };
 
 const humanize = (value) => {
@@ -638,7 +650,7 @@ export class EngTransliterator extends HTMLElement {
         <button class="action action-primary" type="button" data-open-tab="inflection">${icon("table")} Show inflections</button>
         <button class="action" type="button" data-correct>${icon("edit")} ${entry.status === "candidate" ? "Propose another spelling" : "Suggest a correction"}</button>
       </div>
-      ${entry.confidence ? confidenceBadge(entry.confidence.band, entry.confidence.explanation) : ""}
+      ${entry.status === "approved" ? approvedBadge(entry.details?.reviewed) : (entry.confidence ? confidenceBadge(entry.confidence.band, entry.confidence.explanation) : "")}
       ${message ? `<div class="notice" role="status"><strong>${escapeHtml(message)}</strong></div>` : ""}`;
   }
 
@@ -674,7 +686,7 @@ export class EngTransliterator extends HTMLElement {
   }
 
   details(entry) {
-    const statusLabel = entry.status === "approved" ? "Approved entry (unmarked default)" : "Unreviewed candidate";
+    const statusLabel = entry.status === "approved" ? "Editorially approved" : "Unreviewed candidate";
     return `<dl class="details">
       <dt>Editorial status</dt><dd>${statusLabel}</dd>
       <dt>Classification</dt><dd>${escapeHtml(entry.lexicalClass)} · ${escapeHtml(entry.entityType)}</dd>

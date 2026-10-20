@@ -26,7 +26,7 @@ The prototype includes:
 - correction and missing-entry submission events for host integration, with an optional editorial stem hint;
 - responsive light and dark themes.
 
-Approved entries are the unmarked default. Preloaded, unconfirmed records are labeled as unreviewed candidates. Dictionary search never silently generates a result: a missing entry offers a prefilled transition to the separate generator. Runtime forms are labeled “Generated candidate,” display their IPA basis, classification, and morphology, and remain explicitly unreviewed. Requests with no reliable or fully resolvable pronunciation record do not receive a public generated form.
+Editorially approved entries carry a quiet “Editorially approved” badge (with the review date in its tooltip) instead of a confidence label: confidence is the evidence an editor documents before approving, and shown beside an approved entry it would read as the editors doubting their own decision. Candidates keep the confidence label. Preloaded, unconfirmed records are labeled as unreviewed candidates. Dictionary search never silently generates a result: a missing entry offers a prefilled transition to the separate generator. Runtime forms are labeled “Generated candidate,” display their IPA basis, classification, and morphology, and remain explicitly unreviewed. Requests with no reliable or fully resolvable pronunciation record do not receive a public generated form.
 
 The project does not include Georgian-to-Latin romanization. That is outside the current product scope.
 
