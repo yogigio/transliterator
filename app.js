@@ -1,4 +1,4 @@
-import "./src/transliterator-element.js?v=0.10.13";
+import "./src/transliterator-element.js?v=0.10.15";
 import { createAutomaticCandidateService } from "./src/automatic-candidate-service.js?v=0.10.12";
 import {
   createFallbackPronunciationProvider,

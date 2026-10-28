@@ -1,6 +1,6 @@
 import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.13";
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
-import { styles } from "./transliterator-styles.js?v=0.10.13";
+import { styles } from "./transliterator-styles.js?v=0.10.15";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
 
 const icon = (name) => {
@@ -39,10 +39,16 @@ const escapeHtml = (value) => String(value ?? "")
 const confidenceBadge = (band, explanation) => {
   const label = `${String(band ?? "").toLowerCase()} confidence`;
   const displayLabel = label.charAt(0).toUpperCase() + label.slice(1);
-  return `<div class="confidence" role="note" tabindex="0" aria-label="${escapeHtml(displayLabel)}. ${escapeHtml(explanation)}"><strong>${escapeHtml(displayLabel)}</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
+  const tier = ["low", "medium", "high"].includes(String(band).toLowerCase()) ? ` confidence-${String(band).toLowerCase()}` : "";
+  return `<div class="confidence${tier}" role="note" tabindex="0" aria-label="${escapeHtml(displayLabel)}. ${escapeHtml(explanation)}"><strong>${escapeHtml(displayLabel)}</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
 };
 
 /**
+ * Colour carries meaning here and the two scales must not be confusable: approved is
+ * the solid olive accent with a check, a decision. Confidence is an evidence scale on a
+ * soft ground - high neutral, medium amber, low red - so an amber or red label can
+ * never be mistaken for an approval.
+ *
  * An editorially approved entry shows this instead of a confidence label.
  * Confidence is the evidence an editor documents BEFORE approving; once the
  * entry is approved, a confidence band beside it would read as the editors
@@ -51,7 +57,7 @@ const confidenceBadge = (band, explanation) => {
 const approvedBadge = (reviewed) => {
   const date = /^\d{4}-\d{2}-\d{2}$/u.test(String(reviewed ?? "")) ? ` Last reviewed ${reviewed}.` : "";
   const explanation = `Reviewed and approved by eng.ge editors.${date}`;
-  return `<div class="confidence approved" role="note" tabindex="0" aria-label="Editorially approved. ${escapeHtml(explanation)}"><strong>Editorially approved</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
+  return `<div class="confidence approved" role="note" tabindex="0" aria-label="Editorially approved. ${escapeHtml(explanation)}"><svg class="confidence-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><strong>Editorially approved</strong><span class="confidence-info" aria-hidden="true">i</span><span class="confidence-tooltip" role="tooltip" aria-hidden="true">${escapeHtml(explanation)}</span></div>`;
 };
 
 const humanize = (value) => {
