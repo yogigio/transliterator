@@ -2,6 +2,7 @@ import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-p
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
 import { styles } from "./transliterator-styles.js?v=0.10.15";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
+import { normalizeLatinColumnMode, resolveLatinColumn } from "./latin-column.js?v=0.10.17";
 
 const icon = (name) => {
   const paths = {
@@ -157,6 +158,11 @@ template.innerHTML = `
 `;
 
 export class EngTransliterator extends HTMLElement {
+  /** `latin-column`: auto (default) | always | never - see latin-column.js. */
+  static get observedAttributes() {
+    return ["latin-column"];
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -174,6 +180,14 @@ export class EngTransliterator extends HTMLElement {
     this.entryRequest = 0;
     this.candidateRequest = 0;
     this.mode = "search";
+  }
+
+  get latinColumnMode() {
+    return normalizeLatinColumnMode(this.getAttribute("latin-column"));
+  }
+
+  attributeChangedCallback(name, previous, next) {
+    if (name === "latin-column" && previous !== next && this.hasRendered && this.mode === "search") this.render();
   }
 
   setCandidateResolver(resolver) {
@@ -607,7 +621,7 @@ export class EngTransliterator extends HTMLElement {
   generatedInflectionTable(query, candidate, caseLabels) {
     let latin = null;
     try {
-      if (candidate.latinFinalSound) latin = inflectLatinStem({ stem: String(query).trim(), ...candidate.latinFinalSound });
+      if (candidate.latinFinalSound && this.latinColumnMode !== "never") latin = inflectLatinStem({ stem: String(query).trim(), ...candidate.latinFinalSound });
     } catch {
       latin = null; // a term with no Latin letters has no Latin-script paradigm
     }
@@ -618,6 +632,7 @@ export class EngTransliterator extends HTMLElement {
   }
 
   render(message = "") {
+    this.hasRendered = true;
     const entry = this.currentEntry;
     const pronunciation = entry.pronunciations[this.dialect] ?? Object.values(entry.pronunciations)[0];
     const slot = this.shadowRoot.querySelector(".result-slot");
@@ -687,19 +702,25 @@ export class EngTransliterator extends HTMLElement {
   inflection(entry) {
     const hasComponents = entry.inflection.scopes.includes("components");
     const showComponents = hasComponents && this.inflectionScope === "components";
-    const showLatin = entry.inflection.latinScript !== "not_applicable";
+    const latin = resolveLatinColumn(entry.inflection, CASES.map(([key]) => key), this.latinColumnMode);
+    const note = latin
+      ? "Case forms are generated from the stored Georgian stem and the recorded final pronounced sound of the Latin-script term."
+      : "Case forms are generated from the stored Georgian stem.";
     return `
       ${hasComponents ? `<div class="scope-controls" aria-label="Inflection scope"><button class="scope-button" data-scope="whole" aria-pressed="${!showComponents}">Together</button><button class="scope-button" data-scope="components" aria-pressed="${showComponents}">By component</button></div>` : ""}
-      ${showComponents ? this.componentView(entry) : this.paradigmTable(entry.inflection.whole, showLatin ? entry.inflection.latin : null)}
-      <p class="footnote">Case forms are generated from the stored Georgian stem and the recorded final pronounced sound of the Latin-script term.</p>`;
+      ${showComponents ? this.componentView(entry) : this.paradigmTable(entry.inflection.whole, latin)}
+      <p class="footnote">${note}</p>`;
   }
 
+  /** `latinInflection` is null when the entry has no Latin-script column to draw. */
   paradigmTable(paradigm, latinInflection) {
     const showLatin = Boolean(latinInflection);
     const rows = CASES.map(([key, label]) => {
       const georgianForm = paradigm[key];
       const latinForm = latinInflection?.paradigm[key];
-      return `<tr><td>${label}</td><td class="${georgianForm ? "" : "pending"}">${georgianForm ? escapeHtml(georgianForm) : "Awaiting confirmed rule"}</td>${showLatin ? `<td class="${latinForm ? "" : "pending"}">${latinForm ? escapeHtml(latinForm) : "Awaiting confirmed rule"}</td>` : ""}</tr>`;
+      // A Latin cell is empty, not "awaiting a rule": the Latin endings are mechanical.
+      const latinCell = latinForm ? escapeHtml(latinForm) : '<span aria-hidden="true">—</span><span class="sr-only">Not recorded</span>';
+      return `<tr><td>${label}</td><td class="${georgianForm ? "" : "pending"}">${georgianForm ? escapeHtml(georgianForm) : "Awaiting confirmed rule"}</td>${showLatin ? `<td class="${latinForm ? "" : "pending"}">${latinCell}</td>` : ""}</tr>`;
     }).join("");
     return `<div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian script</th>${showLatin ? "<th>Latin-script term</th>" : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }

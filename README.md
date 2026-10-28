@@ -159,7 +159,18 @@ A multi-word name lists its parts in `components`. Each part carries its own par
 
 `stem` and `endingClass` are optional. A component whose cases are all `null` shows "Paradigm awaiting confirmed rule"; the "By component" view appears whenever `scopes` includes `"components"`.
 
-A case with several accepted forms is one string, `"A / B"`. A case the editors have not confirmed is `null`, and the component shows "Awaiting confirmed rule" rather than inventing a form. Generated candidates are different: the component builds both tables itself from IPA, so an unseen term still gets Georgian and Latin-script forms (clearly labelled as an unreviewed candidate).
+A case with several accepted forms is one string, `"A / B"`. A case the editors have not confirmed is `null`, and the Georgian column shows "Awaiting confirmed rule" rather than inventing a form.
+
+#### The Latin-script column
+
+`inflection.latinScript` is the editors' verdict (`unknown`, `regular`, `irregular`, `invariable`, `component_only`, or `not_applicable`). `inflection.latin` may also carry the recorded `stem` and `soundClass` (`consonant`, `vowel_i` or `vowel_other`). The column is drawn only when it has something to show:
+
+- `not_applicable` never draws it.
+- Stored forms are shown as given; a missing case is an em dash, not "awaiting a rule" — the Latin endings are mechanical.
+- With no stored forms, a recorded `stem` and `soundClass` generate them (unless the state is `invariable`, `irregular` or `component_only`, which are an editor saying not to).
+- Otherwise there is no column.
+
+The host can override this with the `latin-column` attribute on `<eng-transliterator>`: `auto` (default), `always` (the old behaviour: a column unless `not_applicable`) or `never`. Generated candidates are different: the component builds both tables itself from IPA, so an unseen term still gets Georgian and Latin-script forms (clearly labelled as an unreviewed candidate).
 
 `GET /transcription/v1/pronunciations?term=<text>&readingType=<ordinary_word|initialism|acronym|traditional_name>` returns the validated pronunciation record shown above, or `404`. Every pronunciation carries its source, licence and dataset version.
 
