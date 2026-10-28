@@ -164,8 +164,8 @@ export const sampleEntries = Object.freeze([
       finalIRole: "Surname case marker", explanation: "The entry is structured as a given name and surname so whole-name and component behavior can be reviewed separately.",
     },
     components: [
-      { source: "Steve", georgian: "სტივ", role: "Given name", paradigm: pendingParadigm() },
-      { source: "Jobs", georgian: "ჯობსი", role: "Surname", paradigm: pendingParadigm() },
+      { source: "Steve", georgian: "სტივ", role: "Given name", stem: "სტივ", endingClass: "Consonant-final", paradigm: generatedGeorgianParadigm("სტივ", "consonant") },
+      { source: "Jobs", georgian: "ჯობსი", role: "Surname", stem: "ჯობს", endingClass: "Consonant-final", paradigm: generatedGeorgianParadigm("ჯობს", "consonant") },
     ],
     inflection: { georgianScript: "automatic", latinScript: "not_applicable", scopes: ["whole", "components"], whole: generatedGeorgianParadigm("სტივ ჯობს", "consonant") },
     details: { method: "Editorially reviewed spelling", version: "Editorial record · v1", reviewed: "Review date not supplied", dictionaryUrl: "https://eng.ge/?lang=en" },

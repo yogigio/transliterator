@@ -64,6 +64,7 @@ src/generation-policies.js         classification-to-strategy policy registry
 src/transliteration-generator.js   classification-aware generator boundary
 src/regression-pronunciations.js   small reviewed browser demonstration corpus
 src/georgian-inflector.js          deterministic Georgian-script case engine
+src/composite-name-inflector.js    multi-component names: which components take endings (configurable rule)
 src/latin-inflector.js             deterministic Latin-script case engine
 tests/sample-provider.test.mjs     provider contract tests
 tests/ipa-tokenizer.test.mjs       IPA normalization and tokenization tests
@@ -144,6 +145,20 @@ The component talks to two read-only `GET` endpoints. Both are replaceable: poin
 }
 ```
 
+A multi-word name lists its parts in `components`. Each part carries its own paradigm, in the same shape as `inflection.whole` — all seven cases, `null` where nothing is confirmed:
+
+```json
+"inflection": { "scopes": ["whole", "components"], "…": "…" },
+"components": [
+  { "source": "Steve", "georgian": "სტივ", "role": "Given name",
+    "stem": "სტივ", "endingClass": "Consonant-final",
+    "paradigm": { "nominative": "სტივი", "ergative": "სტივმა", "…": "…" } },
+  { "source": "Jobs", "georgian": "ჯობსი", "role": "Surname", "paradigm": { "nominative": null, "…": null } }
+]
+```
+
+`stem` and `endingClass` are optional. A component whose cases are all `null` shows "Paradigm awaiting confirmed rule"; the "By component" view appears whenever `scopes` includes `"components"`.
+
 A case with several accepted forms is one string, `"A / B"`. A case the editors have not confirmed is `null`, and the component shows "Awaiting confirmed rule" rather than inventing a form. Generated candidates are different: the component builds both tables itself from IPA, so an unseen term still gets Georgian and Latin-script forms (clearly labelled as an unreviewed candidate).
 
 `GET /transcription/v1/pronunciations?term=<text>&readingType=<ordinary_word|initialism|acronym|traditional_name>` returns the validated pronunciation record shown above, or `404`. Every pronunciation carries its source, licence and dataset version.
@@ -207,6 +222,32 @@ const result = inflectLatinStem({
 console.log(result.cases.nominative.display); // Codex / Codex-ი
 console.log(result.cases.genitive.display);   // Codex-ის
 ```
+
+### Names made of several components
+
+A personal name such as "Steve Jobs" is a list of components, each with its own stem and declension class. Which of them take a case ending when the **whole** name is inflected is a linguistic rule the project owner has not yet confirmed, so it is a parameter of `src/composite-name-inflector.js` rather than a hard-coded behaviour:
+
+| `policy` | Components that take endings | Ergative of "Steve Jobs" |
+|---|---|---|
+| `last` (default) | the final component only | სტივ ჯობსმა |
+| `flagged` | components whose `inflects` flag is set | per component |
+| `all` | every component | სტივმა ჯობსმა |
+
+```js
+import { inflectCompositeName } from "./src/composite-name-inflector.js";
+
+const result = inflectCompositeName({
+  components: [
+    { key: "given", stem: "სტივ", declensionClass: "consonant" },
+    { key: "surname", stem: "ჯობს", declensionClass: "consonant" },
+  ],
+  policy: "last",
+});
+
+console.log(result.cases.ergative.display); // სტივ ჯობსმა
+```
+
+The default reproduces exactly what inflecting the single stem `სტივ ჯობს` produces, so adopting components changes no existing form. An unknown `policy` throws (`INVALID_POLICY`) instead of guessing; `normalizeCompositePolicy()` is the lenient entry point for values that arrive from a form or a stored setting. A component's own paradigm is simply `inflectGeorgianStem()` on its own stem and class, independent of the rule.
 
 ### Spelling-guided vowels
 

@@ -14,7 +14,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const IMPORT = /(?:^|\n)\s*(?:import|export)\s+(?:[^'"`;]*?\s+from\s+)?["']([^"']+)["']/g;
 const asPath = (file) => relative(root, file).split(sep).join("/");
 
-function loadGraph(entry) {
+// The page's entry point, and the modules a host page imports on its own (the
+// eng.ge editor loads the composite engine directly rather than through app.js).
+const ENTRIES = ["app.js", "src/composite-name-inflector.js"];
+
+function loadGraph(...entries) {
   const urls = new Map(); // module path -> Map(resolved url -> importers)
   const unversioned = [];
   const visited = new Set();
@@ -36,12 +40,12 @@ function loadGraph(entry) {
       visit(target);
     }
   };
-  visit(resolve(root, entry));
+  entries.forEach((entry) => visit(resolve(root, entry)));
   return { urls, unversioned, modules: visited.size };
 }
 
 test("every module the page loads is reached through a single URL", () => {
-  const { urls } = loadGraph("app.js");
+  const { urls } = loadGraph(...ENTRIES);
   const split = [...urls]
     .filter(([, importers]) => importers.size > 1)
     .map(([module, importers]) => `${module}: ${[...importers].map(([url, from]) => `${url} (from ${from.join(", ")})`).join(" vs ")}`);
@@ -49,9 +53,10 @@ test("every module the page loads is reached through a single URL", () => {
 });
 
 test("every relative import carries a version query", () => {
-  assert.deepEqual(loadGraph("app.js").unversioned, []);
+  assert.deepEqual(loadGraph(...ENTRIES).unversioned, []);
 });
 
 test("the import graph was actually walked", () => {
   assert.ok(loadGraph("app.js").modules >= 15);
+  assert.ok(loadGraph("src/composite-name-inflector.js").modules >= 2);
 });

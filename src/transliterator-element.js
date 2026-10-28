@@ -1,6 +1,6 @@
-import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.12";
+import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.13";
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
-import { styles } from "./transliterator-styles.js?v=0.10.11";
+import { styles } from "./transliterator-styles.js?v=0.10.13";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
 
 const icon = (name) => {
@@ -682,7 +682,22 @@ export class EngTransliterator extends HTMLElement {
   }
 
   componentView(entry) {
-    return `<div class="component-list">${entry.components.map((component) => `<div class="component"><span><strong>${escapeHtml(component.georgian)}</strong><br><small>${escapeHtml(component.source)}</small></span><span>${escapeHtml(component.role)}</span><small>Paradigm awaiting confirmed rule</small></div>`).join("")}</div>`;
+    return `<div class="component-list">${entry.components.map((component) => this.componentCard(component)).join("")}</div>`;
+  }
+
+  /** A component's own case forms, or an honest "awaiting" line when none are published. */
+  componentCard(component) {
+    const published = CASES.some(([key]) => component.paradigm?.[key]);
+    const structure = [component.stem ? `Stem ${component.stem}` : "", component.endingClass || ""].filter(Boolean).join(" · ");
+    return `<div class="component"><span><strong>${escapeHtml(component.georgian)}</strong><br><small>${escapeHtml(component.source)}</small></span><span>${escapeHtml(component.role)}</span>${structure ? `<small>${escapeHtml(structure)}</small>` : ""}${published ? this.componentParadigm(component.paradigm) : "<small>Paradigm awaiting confirmed rule</small>"}</div>`;
+  }
+
+  componentParadigm(paradigm) {
+    const rows = CASES.map(([key, label]) => {
+      const form = paradigm[key];
+      return `<tr><td>${label}</td><td class="${form ? "" : "pending"}">${form ? escapeHtml(form) : "Awaiting confirmed rule"}</td></tr>`;
+    }).join("");
+    return `<div class="table-wrap"><table><thead><tr><th>Case</th><th>Georgian script</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   details(entry) {

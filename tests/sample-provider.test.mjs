@@ -92,6 +92,23 @@ test("declares conditional script and component inflection capabilities", () => 
   assert.equal(personalName.components.length, 2);
 });
 
+test("a component carries its own paradigm, or an all-null one while none is confirmed", () => {
+  const keys = CASES.map(([key]) => key);
+  sampleEntries.filter((entry) => entry.components).forEach((entry) => {
+    entry.components.forEach((component) => assert.deepEqual(Object.keys(component.paradigm), keys));
+  });
+
+  const [given, surname] = getEntry("sample_steve_jobs").components;
+  assert.equal(given.paradigm.ergative, "სტივმა");
+  assert.equal(surname.paradigm.genitive, "ჯობსის");
+  assert.equal(surname.stem, "ჯობს");
+
+  // Linus Torvalds stays pending: the component view must say so rather than invent forms.
+  getEntry("sample_linus_torvalds").components.forEach((component) => {
+    assert.ok(Object.values(component.paradigm).every((value) => value === null));
+  });
+});
+
 test("all fixtures expose a complete generated Georgian case-table shape", () => {
   const keys = CASES.map(([key]) => key);
   sampleEntries.forEach((entry) => {
