@@ -140,7 +140,7 @@ The component talks to two read-only `GET` endpoints. Both are replaceable: poin
       "nominative": "Microsoft / Microsoft-ი",
       "ergative": "Microsoft-მა",
       "vocative": "Microsoft / Microsoft-ო"
-    } }
+    }, "stem": "Microsoft", "soundClass": "consonant" }
   }
 }
 ```
