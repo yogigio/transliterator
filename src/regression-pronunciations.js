@@ -1,4 +1,4 @@
-import { createInMemoryPronunciationProvider } from "./pronunciation-provider.js";
+import { createInMemoryPronunciationProvider } from "./pronunciation-provider.js?v=0.10.2";
 
 const editorialSource = Object.freeze({
   label: "Approved IPA regression fixture",

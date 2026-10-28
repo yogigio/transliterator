@@ -1,4 +1,4 @@
-import { transcribeEnglishIpa } from "./english-ipa-engine.js?v=0.10.8";
+import { transcribeEnglishIpa } from "./english-ipa-engine.js?v=0.10.12";
 
 export function createAutomaticCandidateService({ pronunciationProvider } = {}) {
   if (!pronunciationProvider || typeof pronunciationProvider.lookup !== "function") {

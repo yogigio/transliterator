@@ -1,4 +1,4 @@
-import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.2";
+import { CASES, featuredEntries, sampleEntries, searchEntries } from "./sample-provider.js?v=0.10.12";
 import { ENTRY_FILTER_GROUPS, filterEntries, hasActiveEntryFilters, normalizeEntryFilters } from "./entry-filters.js?v=0.10.2";
 import { styles } from "./transliterator-styles.js?v=0.10.11";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";

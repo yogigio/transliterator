@@ -1,5 +1,5 @@
-import { validateGeneratorRequest } from "./generator-request.js";
-import { resolveGenerationPolicy } from "./generation-policies.js";
+import { validateGeneratorRequest } from "./generator-request.js?v=0.10.12";
+import { resolveGenerationPolicy } from "./generation-policies.js?v=0.10.12";
 
 export function createTransliterationGenerator({ candidateService } = {}) {
   if (!candidateService || typeof candidateService.suggest !== "function") {

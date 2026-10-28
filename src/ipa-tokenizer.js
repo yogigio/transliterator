@@ -1,5 +1,5 @@
-import { IPA_TOKEN_INVENTORY } from "./english-ipa-rules.js";
-import { normalizeEnglishIpa } from "./ipa-normalizer.js";
+import { IPA_TOKEN_INVENTORY } from "./english-ipa-rules.js?v=0.10.1";
+import { normalizeEnglishIpa } from "./ipa-normalizer.js?v=0.10.12";
 
 const MARKERS = Object.freeze({
   "ˈ": "primary_stress",

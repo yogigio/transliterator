@@ -6,8 +6,8 @@ import {
   PRONUNCIATION_RELIABILITY,
   PUBLIC_PRONUNCIATION_RELIABILITY,
 } from "./english-ipa-rules.js?v=0.10.1";
-import { tokenizeEnglishIpa } from "./ipa-tokenizer.js";
-import { inflectGeorgianStem } from "./georgian-inflector.js";
+import { tokenizeEnglishIpa } from "./ipa-tokenizer.js?v=0.10.12";
+import { inflectGeorgianStem } from "./georgian-inflector.js?v=0.8.3";
 import { createSpellingGuide } from "./spelling-guided-vowels.js?v=0.10.7";
 
 const VOWELS = new Set(IPA_VOWEL_TOKENS);

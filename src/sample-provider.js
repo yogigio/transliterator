@@ -1,7 +1,7 @@
 import { composeGeorgianInitialism } from "./georgian-initialism.js?v=0.8.3";
 import { inflectGeorgianStem } from "./georgian-inflector.js?v=0.8.3";
 import { inflectLatinStem } from "./latin-inflector.js?v=0.8.3";
-import { filterEntries, hasActiveEntryFilters } from "./entry-filters.js?v=0.8.3";
+import { filterEntries, hasActiveEntryFilters } from "./entry-filters.js?v=0.10.2";
 
 const CASES = [
   ["nominative", "Nominative"],
