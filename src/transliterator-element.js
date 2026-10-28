@@ -284,7 +284,7 @@ export class EngTransliterator extends HTMLElement {
       button.className = "example";
       button.type = "button";
       button.textContent = entry.headword;
-      button.addEventListener("click", () => this.selectEntry(entry));
+      button.addEventListener("click", () => this.selectFeatured(entry));
       examples.append(button);
     });
 
@@ -475,6 +475,23 @@ export class EngTransliterator extends HTMLElement {
 
   sourceDisplay(entry) {
     return `${entry.sourceLanguage}${entry.sourceRegion ? ` (${entry.sourceRegion})` : ""}`;
+  }
+
+  /**
+   * A "Try:" chip is a built-in sample, shown at once. If the editorial database holds a live
+   * entry for the same headword it replaces the sample, as it does for a typed search, so the
+   * chip never shows a placeholder paradigm for a name editors have already completed.
+   */
+  async selectFeatured(entry) {
+    this.selectEntry(entry);
+    if (!this.entryResolver) return;
+    const requestId = ++this.entryRequest;
+    let remote = [];
+    try { remote = await this.entryResolver(entry.headword, this.entryFilters); } catch (_) { remote = []; }
+    if (requestId !== this.entryRequest || this.currentEntry !== entry) return;
+    const live = filterEntries(remote, this.entryFilters)
+      .find((item) => item.headword.toLocaleLowerCase() === entry.headword.toLocaleLowerCase());
+    if (live) this.selectEntry(live, false);
   }
 
   selectEntry(entry, emitEvent = true) {
